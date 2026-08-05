@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ประวัติ Error รถ EV — TPI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #fbfbfd;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --text-dim: #86868b;
+    --line: #d2d2d7;
+    --blue: #0071e3;
+    --blue-dim: #0077ed;
+    --red: #d70015;
+    --green: #1a7f37;
+    --orange: #c2650a;
+    --purple: #8944ab;
+    --teal: #0a7a8c;
+    --gray: #6e6e73;
+    --radius: 18px;
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+    --sans: 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  body{min-height:100vh;}
+
+  .nav{
+    position:sticky;top:0;z-index:20;
+    backdrop-filter:saturate(180%) blur(20px);
+    background:rgba(251,251,253,.82);
+    border-bottom:1px solid var(--line);
+    padding:14px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  }
+  .nav h1{font-size:17px;font-weight:600;margin:0;letter-spacing:-.01em;}
+  .nav .updated{font-size:12px;color:var(--text-dim);margin-right:auto;}
+  .iconbtn{
+    border:none;background:var(--card);border:1px solid var(--line);color:var(--text);
+    width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:15px;
+    display:flex;align-items:center;justify-content:center;transition:.15s;
+  }
+  .iconbtn:hover{background:#f2f2f4;}
+  .iconbtn.spin{animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .hero{padding:38px 24px 8px;max-width:980px;margin:0 auto;text-align:center;}
+  .hero h2{font-size:32px;font-weight:600;letter-spacing:-.02em;margin:0 0 6px;}
+  .hero p{font-size:16px;color:var(--text-dim);margin:0;}
+
+  .stats{
+    max-width:980px;margin:26px auto 0;padding:0 24px;
+    display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+  }
+  .stat-card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 20px;text-align:center;
+  }
+  .stat-card b{font-size:28px;font-weight:600;display:block;letter-spacing:-.01em;}
+  .stat-card span{font-size:12.5px;color:var(--text-dim);}
+
+  .toolbar{
+    max-width:980px;margin:20px auto 0;padding:0 24px;
+    display:flex;gap:10px;flex-wrap:wrap;
+  }
+  .search{flex:1;min-width:200px;position:relative;}
+  .search input{
+    width:100%;background:var(--card);border:1px solid var(--line);color:var(--text);
+    padding:11px 14px 11px 38px;border-radius:12px;font-size:14.5px;font-family:var(--sans);
+  }
+  .search::before{content:"⌕";position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-dim);font-size:16px;}
+  select{
+    background:var(--card);border:1px solid var(--line);color:var(--text);
+    padding:11px 12px;border-radius:12px;font-size:14px;font-family:var(--sans);
+  }
+  input:focus, select:focus{outline:2px solid var(--blue);outline-offset:1px;}
+
+  main{max-width:980px;margin:0 auto;padding:18px 24px 70px;}
+
+  .state{text-align:center;padding:70px 20px;color:var(--text-dim);}
+  .state h3{color:var(--text);font-size:17px;font-weight:600;margin:0 0 6px;}
+  .state p{margin:0;font-size:14px;line-height:1.6;}
+  .state code{background:#f2f2f4;padding:2px 7px;border-radius:6px;font-size:12.5px;}
+
+  .list{display:flex;flex-direction:column;gap:10px;}
+  .row-card{
+    background:var(--card);border:1px solid var(--line);border-radius:16px;
+    padding:16px 18px;cursor:pointer;transition:.12s;
+  }
+  .row-card:hover{border-color:#b0b0b5;box-shadow:var(--shadow);}
+  .row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .row-tpi{font-size:16px;font-weight:600;letter-spacing:-.01em;}
+  .row-date{font-size:12.5px;color:var(--text-dim);white-space:nowrap;text-align:right;}
+  .row-symptom{font-size:14.5px;margin:8px 0 10px;line-height:1.5;color:#3a3a3c;}
+  .row-bottom{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+
+  .chip{
+    display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;
+    font-size:12px;font-weight:600;
+  }
+  .chip.hv{background:#fde7e9;color:var(--red);}
+  .chip.lv{background:#e5f1ff;color:var(--blue);}
+  .chip.bms{background:#e6f6ea;color:var(--green);}
+  .chip.motor{background:#fdf0e2;color:var(--orange);}
+  .chip.charge{background:#f4e9fa;color:var(--purple);}
+  .chip.brake{background:#e6f5f6;color:var(--teal);}
+  .chip.other{background:#efeff0;color:var(--gray);}
+  .chip.unset{background:transparent;border:1px dashed var(--line);color:var(--text-dim);font-weight:500;}
+  .chip.code{background:#f2f2f4;color:#3a3a3c;font-family:ui-monospace,monospace;}
+  .chip.recur{background:#fff4e5;color:#a15c00;}
+
+  .status{font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:5px;margin-left:auto;}
+  .status::before{content:"";width:6px;height:6px;border-radius:50%;}
+  .status.ok::before{background:var(--green);}
+  .status.bad::before{background:var(--red);}
+  .status.mid::before{background:var(--orange);}
+
+  .sheet-overlay{
+    position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:40;display:none;
+    align-items:flex-end;justify-content:center;
+  }
+  .sheet-overlay.show{display:flex;}
+  @media(min-width:640px){ .sheet-overlay{align-items:center;} }
+  .sheet{
+    background:var(--card);width:100%;max-width:520px;max-height:86vh;
+    border-radius:20px 20px 0 0;overflow-y:auto;
+    transform:translateY(30px);opacity:0;transition:.2s;
+  }
+  @media(min-width:640px){ .sheet{border-radius:20px;} }
+  .sheet-overlay.show .sheet{transform:translateY(0);opacity:1;}
+  .sheet-head{padding:22px 24px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card);}
+  .sheet-head h2{margin:0 0 4px;font-size:19px;font-weight:600;}
+  .sheet-head p{margin:0;font-size:13px;color:var(--text-dim);}
+  .sheet-close{position:absolute;top:18px;right:18px;background:#f2f2f4;border:none;width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;color:var(--text-dim);}
+  .sheet-body{padding:18px 24px 30px;}
+  .kv{margin-bottom:16px;}
+  .kv label{display:block;font-size:11.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;}
+  .kv .v{font-size:15px;line-height:1.55;}
+  .edit-link{
+    display:block;margin-top:6px;padding:12px 16px;background:#f2f2f4;border-radius:12px;
+    text-align:center;color:var(--blue);font-size:13.5px;font-weight:500;text-decoration:none;
+  }
+</style>
+</head>
+<body>
+<div class="nav">
+  <h1>ประวัติ Error รถ EV</h1>
+  <span class="updated" id="updatedAt">กำลังโหลด...</span>
+  <button class="iconbtn" id="refreshBtn" title="รีเฟรชข้อมูล">⟳</button>
+</div>
+
+<div class="hero">
+  <h2>ค้นหาประวัติ error รถ EV</h2>
+  <p>อาการ · สาเหตุ · วิธีแก้ไข — อัพเดทจาก Google Sheet ของทีม</p>
+</div>
+
+<div class="stats">
+  <div class="stat-card"><b id="statTotal">–</b><span>รายการทั้งหมด</span></div>
+  <div class="stat-card"><b id="statUnresolved">–</b><span>ยังไม่เสร็จ</span></div>
+  <div class="stat-card"><b id="statRecur">–</b><span>Error ซ้ำ ≥2 ครั้ง</span></div>
+</div>
+
+<div class="toolbar">
+  <div class="search"><input id="searchInput" placeholder="ค้นหา TPI Code, Error Code, อาการ, อุปกรณ์..."></div>
+  <select id="filterSystem"><option value="">ทุกระบบ</option></select>
+  <select id="filterStatus"><option value="">ทุกสถานะ</option></select>
+  <select id="filterTpi"><option value="">ทุกคัน</option></select>
+</div>
+
+<main>
+  <div class="state" id="stateBox" style="display:none"></div>
+  <div class="list" id="list"></div>
+</main>
+
+<div class="sheet-overlay" id="sheetOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <button class="sheet-close" id="sheetClose">✕</button>
+      <h2 id="shTpi">—</h2>
+      <p id="shSub">—</p>
+    </div>
+    <div class="sheet-body" id="shBody"></div>
+  </div>
+</div>
+
+<script>
+/* ตั้งค่าลิงก์ CSV จาก Google Sheet (File > Share > Publish to web > CSV) ตรงนี้ */
+const DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7fagcTTmH5KHHLAgUulQEVldSmfPIrnDeekJ9YxCPFXi43bY_1IwgPUFTUYP3cR08WuaElJc5vHHE/pub?gid=0&single=true&output=csv";
+const params = new URLSearchParams(location.search);
+const CSV_URL = params.get('csv') || DEFAULT_CSV_URL;
+const SHEET_EDIT_URL = params.get('edit') || "";
+
+const SYSTEM_META = {
+  'HV': {l:'HV แรงดันสูง', cls:'hv'},
+  'LV': {l:'LV แรงดันต่ำ', cls:'lv'},
+  'BMS': {l:'BMS', cls:'bms'},
+  'MOTOR': {l:'Motor/Inverter', cls:'motor'},
+  'CHARGE': {l:'ระบบชาร์จ', cls:'charge'},
+  'BRAKE': {l:'ระบบเบรก', cls:'brake'},
+  'OTHER': {l:'อื่นๆ', cls:'other'},
+};
+const HEADER_MAP = [
+  {key:'id', matches:['id','ลำดับ']},
+  {key:'date', matches:['วันที่']},
+  {key:'timeFrom', matches:['เวลาจาก']},
+  {key:'timeTo', matches:['เวลาถึง']},
+  {key:'tpiCode', matches:['tpi code','tpi','รหัสรถ']},
+  {key:'workOrder', matches:['work order','ใบสั่งงาน']},
+  {key:'symptom', matches:['อาการ','รายละเอียด']},
+  {key:'errorCode', matches:['error code','error']},
+  {key:'rootCauseInitial', matches:['สาเหตุ']},
+  {key:'fixMethod', matches:['วิธีแก้ไข','วิธีแก้']},
+  {key:'technician', matches:['ผู้ซ่อม','ช่าง']},
+  {key:'resultStatus', matches:['ผลการซ่อม','ผล']},
+  {key:'system', matches:['ระบบ']},
+  {key:'component', matches:['อุปกรณ์']},
+  {key:'resolvedPermanent', matches:['แก้หาย','ถาวร']},
+];
+
+let records = [];
+
+function showState(html){
+  document.getElementById('stateBox').style.display = 'block';
+  document.getElementById('stateBox').innerHTML = html;
+  document.getElementById('list').innerHTML = '';
+}
+function hideState(){ document.getElementById('stateBox').style.display = 'none'; }
+
+function mapRow(row, headers){
+  const rec = {};
+  HEADER_MAP.forEach(f=>{
+    let h = headers.find(x => f.matches.some(m => x.toLowerCase().trim() === m));
+    if(!h) h = headers.find(x => f.matches.some(m => x.toLowerCase().includes(m)));
+    rec[f.key] = h ? String(row[h] ?? '').trim() : '';
+  });
+  return rec;
+}
+
+async function loadData(isRefresh){
+  const btn = document.getElementById('refreshBtn');
+  if(isRefresh) btn.classList.add('spin');
+  if(!CSV_URL){
+    showState(`<h3>ยังไม่ได้ตั้งค่าแหล่งข้อมูล</h3>
+      <p>ต้องเชื่อมกับ Google Sheet ที่ Publish to web แบบ CSV แล้วนำลิงก์มาใส่ในหน้านี้ก่อน<br>ติดต่อผู้ดูแล dashboard นี้เพื่อตั้งค่า</p>`);
+    if(isRefresh) btn.classList.remove('spin');
+    return;
+  }
+  try{
+    const res = await fetch(CSV_URL + (CSV_URL.includes('?') ? '&' : '?') + 'cachebust=' + Date.now());
+    if(!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ (HTTP ' + res.status + ')');
+    const text = await res.text();
+    const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
+    const headers = parsed.meta.fields || [];
+    records = parsed.data.map(row => mapRow(row, headers)).filter(r => r.id);
+    document.getElementById('updatedAt').textContent = 'อัพเดทล่าสุด ' + new Date().toLocaleString('th-TH', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'});
+    hideState();
+    render();
+  }catch(e){
+    showState(`<h3>โหลดข้อมูลไม่สำเร็จ</h3><p>${e.message}<br>ตรวจสอบว่า Google Sheet ยังแชร์แบบ Publish to web (CSV) อยู่ และลองกดปุ่มรีเฟรชอีกครั้ง</p>`);
+  }
+  if(isRefresh) btn.classList.remove('spin');
+}
+document.getElementById('refreshBtn').addEventListener('click', ()=>loadData(true));
+
+function sysMeta(v){ return SYSTEM_META[v]; }
+function statusClass(status){
+  if(!status) return 'mid';
+  if(status.includes('ไม่เสร็จ')) return 'bad';
+  if(status.includes('เสร็จ')||status.includes('ปล่อยใช้งาน')) return 'ok';
+  return 'mid';
+}
+function errorCodeCounts(){
+  const map = {};
+  records.forEach(r=>{
+    if(!r.errorCode) return;
+    const key = (r.tpiCode||'')+'|'+r.errorCode;
+    map[key] = (map[key]||0)+1;
+  });
+  return map;
+}
+function populateFilters(){
+  const sysSel = document.getElementById('filterSystem');
+  const statusSel = document.getElementById('filterStatus');
+  const tpiSel = document.getElementById('filterTpi');
+  const curSys=sysSel.value, curStatus=statusSel.value, curTpi=tpiSel.value;
+  sysSel.innerHTML = '<option value="">ทุกระบบ</option>' + Object.entries(SYSTEM_META).map(([k,v])=>`<option value="${k}">${v.l}</option>`).join('');
+  const statuses = [...new Set(records.map(r=>r.resultStatus).filter(Boolean))];
+  statusSel.innerHTML = '<option value="">ทุกสถานะ</option>' + statuses.map(s=>`<option value="${s}">${s}</option>`).join('');
+  const tpis = [...new Set(records.map(r=>r.tpiCode).filter(Boolean))].sort();
+  tpiSel.innerHTML = '<option value="">ทุกคัน</option>' + tpis.map(s=>`<option value="${s}">${s}</option>`).join('');
+  sysSel.value=curSys; statusSel.value=curStatus; tpiSel.value=curTpi;
+}
+
+function render(){
+  populateFilters();
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const fSys = document.getElementById('filterSystem').value;
+  const fStatus = document.getElementById('filterStatus').value;
+  const fTpi = document.getElementById('filterTpi').value;
+  const counts = errorCodeCounts();
+
+  let filtered = records.filter(r=>{
+    if(fSys && r.system !== fSys) return false;
+    if(fStatus && r.resultStatus !== fStatus) return false;
+    if(fTpi && r.tpiCode !== fTpi) return false;
+    if(q){
+      const hay = [r.tpiCode,r.errorCode,r.symptom,r.component,r.rootCauseInitial,r.fixMethod,r.technician].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  filtered.sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.timeFrom||'').localeCompare(a.timeFrom||''));
+
+  document.getElementById('statTotal').textContent = records.length;
+  document.getElementById('statUnresolved').textContent = records.filter(r=>(r.resultStatus||'').includes('ไม่เสร็จ')).length;
+  document.getElementById('statRecur').textContent = Object.values(counts).filter(c=>c>=2).length;
+
+  const list = document.getElementById('list');
+  if(records.length === 0){
+    showState(`<h3>ยังไม่มีข้อมูล</h3><p>ยังไม่พบแถวข้อมูลใน Google Sheet ที่เชื่อมไว้ ตรวจสอบว่ามีข้อมูลและหัวคอลัมน์ถูกต้อง</p>`);
+    return;
+  }
+  if(filtered.length === 0){
+    hideState();
+    list.innerHTML = `<div class="state" style="display:block"><h3>ไม่พบผลลัพธ์</h3><p>ลองปรับคำค้นหาหรือตัวกรอง</p></div>`;
+    return;
+  }
+  hideState();
+
+  list.innerHTML = filtered.map(r=>{
+    const meta = sysMeta(r.system);
+    const sysChip = meta ? `<span class="chip ${meta.cls}">${meta.l}</span>` : `<span class="chip unset">ยังไม่ระบุระบบ</span>`;
+    const key = (r.tpiCode||'')+'|'+r.errorCode;
+    const isRecur = r.errorCode && counts[key] >= 2;
+    return `<div class="row-card" data-id="${r.id}">
+      <div class="row-top">
+        <div class="row-tpi">${r.tpiCode||'—'}</div>
+        <div class="row-date">${r.date||''}${r.timeFrom?' · '+r.timeFrom:''}</div>
+      </div>
+      <div class="row-symptom">${r.symptom || '—'}</div>
+      <div class="row-bottom">
+        ${sysChip}
+        ${r.errorCode ? `<span class="chip code">${r.errorCode}</span>` : ''}
+        ${isRecur ? `<span class="chip recur">ซ้ำ ${counts[key]}×</span>` : ''}
+        <span class="status ${statusClass(r.resultStatus)}">${r.resultStatus||'—'}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.row-card').forEach(el=>{
+    el.addEventListener('click', ()=> openSheet(el.dataset.id));
+  });
+}
+
+function openSheet(id){
+  const r = records.find(x=>x.id===id);
+  if(!r) return;
+  document.getElementById('shTpi').textContent = r.tpiCode || '—';
+  document.getElementById('shSub').textContent = `${r.date||''} ${r.timeFrom||''}${r.timeTo?'-'+r.timeTo:''} · WO ${r.workOrder||'—'}`;
+  const row = (label, val) => `<div class="kv"><label>${label}</label><div class="v">${val || '<span style="color:var(--text-dim)">—</span>'}</div></div>`;
+  const meta = sysMeta(r.system);
+  document.getElementById('shBody').innerHTML = `
+    ${row('อาการ / รายละเอียด', r.symptom)}
+    ${row('Error Code', r.errorCode)}
+    ${row('ระบบที่เกี่ยวข้อง', meta ? meta.l : 'ยังไม่ระบุ')}
+    ${row('อุปกรณ์ต้นเหตุ', r.component)}
+    ${row('สาเหตุเบื้องต้น', r.rootCauseInitial)}
+    ${row('วิธีแก้ไขที่ทำ', r.fixMethod)}
+    ${row('ผู้ซ่อม', r.technician)}
+    ${row('ผลการซ่อม', r.resultStatus)}
+    ${row('แก้หายถาวรหรือไม่', r.resolvedPermanent)}
+    ${SHEET_EDIT_URL ? `<a class="edit-link" href="${SHEET_EDIT_URL}" target="_blank" rel="noopener">แก้ไขข้อมูลนี้ใน Google Sheet ↗</a>` : ''}
+  `;
+  document.getElementById('sheetOverlay').classList.add('show');
+}
+document.getElementById('sheetClose').addEventListener('click', ()=>document.getElementById('sheetOverlay').classList.remove('show'));
+document.getElementById('sheetOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'sheetOverlay') e.currentTarget.classList.remove('show');
+});
+
+['searchInput'].forEach(id=>document.getElementById(id).addEventListener('input', render));
+['filterSystem','filterStatus','filterTpi'].forEach(id=>document.getElementById(id).addEventListener('change', render));
+
+loadData(false);
+</script>
+</body>
+</html>
