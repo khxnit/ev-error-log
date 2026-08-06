@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ประวัติ Error รถ EV — TPI</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -144,6 +145,32 @@
     display:block;margin-top:6px;padding:12px 16px;background:#f2f2f4;border-radius:12px;
     text-align:center;color:var(--blue);font-size:13.5px;font-weight:500;text-decoration:none;
   }
+
+  .tpi-link, .code-link{
+    cursor:pointer;text-decoration:none;color:inherit;border-bottom:1px dashed transparent;
+  }
+  .tpi-link:hover, .code-link:hover{color:var(--blue);border-bottom-color:var(--blue);}
+  .sheet-wide .sheet{max-width:640px;}
+  .sheet-back{
+    background:none;border:none;color:var(--blue);font-size:14px;font-weight:500;cursor:pointer;
+    padding:0 0 10px;display:flex;align-items:center;gap:4px;
+  }
+  .profile-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 20px;}
+  .profile-stats .pstat{background:#f5f5f7;border-radius:12px;padding:12px;text-align:center;}
+  .profile-stats .pstat b{display:block;font-size:20px;font-weight:600;}
+  .profile-stats .pstat span{font-size:11px;color:var(--text-dim);}
+  .profile-section{margin-bottom:26px;}
+  .profile-section h4{font-size:13px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;margin:0 0 10px;}
+  .chart-box{position:relative;height:180px;margin-bottom:6px;}
+  .mini-list{display:flex;flex-direction:column;gap:8px;}
+  .mini-row{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;
+    background:#f5f5f7;border-radius:12px;padding:11px 14px;cursor:pointer;
+  }
+  .mini-row:hover{background:#ececee;}
+  .mini-row .mr-main{font-size:14px;font-weight:500;}
+  .mini-row .mr-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+  .mini-row .mr-count{font-size:13px;font-weight:600;color:var(--text-dim);white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -177,9 +204,10 @@
 </main>
 
 <div class="sheet-overlay" id="sheetOverlay">
-  <div class="sheet">
+  <div class="sheet" id="sheetEl">
     <div class="sheet-head">
       <button class="sheet-close" id="sheetClose">✕</button>
+      <button class="sheet-back" id="sheetBack" style="display:none">‹ กลับ</button>
       <h2 id="shTpi">—</h2>
       <p id="shSub">—</p>
     </div>
@@ -338,13 +366,13 @@ function render(){
     const isRecur = r.errorCode && counts[key] >= 2;
     return `<div class="row-card" data-id="${r.id}">
       <div class="row-top">
-        <div class="row-tpi">${r.tpiCode||'—'}</div>
+        <div class="row-tpi"><span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span></div>
         <div class="row-date">${r.date||''}${r.timeFrom?' · '+r.timeFrom:''}</div>
       </div>
       <div class="row-symptom">${r.symptom || '—'}</div>
       <div class="row-bottom">
         ${sysChip}
-        ${r.errorCode ? `<span class="chip code">${r.errorCode}</span>` : ''}
+        ${r.errorCode ? `<span class="chip code code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : ''}
         ${isRecur ? `<span class="chip recur">ซ้ำ ${counts[key]}×</span>` : ''}
         <span class="status ${statusClass(r.resultStatus)}">${r.resultStatus||'—'}</span>
       </div>
@@ -354,18 +382,73 @@ function render(){
   list.querySelectorAll('.row-card').forEach(el=>{
     el.addEventListener('click', ()=> openSheet(el.dataset.id));
   });
+  list.querySelectorAll('.tpi-link').forEach(el=>{
+    el.addEventListener('click', e=>{ e.stopPropagation(); openVehicleProfile(el.dataset.tpi); });
+  });
+  list.querySelectorAll('.code-link').forEach(el=>{
+    el.addEventListener('click', e=>{ e.stopPropagation(); openErrorProfile(el.dataset.code); });
+  });
 }
 
-function openSheet(id){
+let activeCharts = [];
+function clearCharts(){ activeCharts.forEach(c=>c.destroy()); activeCharts = []; }
+
+let sheetStack = [];
+function pushSheet(renderFn){
+  sheetStack.push(renderFn);
+  renderFn();
+  document.getElementById('sheetBack').style.display = sheetStack.length > 1 ? 'flex' : 'none';
+  document.getElementById('sheetOverlay').classList.add('show');
+}
+function freshSheet(renderFn){ sheetStack = []; pushSheet(renderFn); }
+function goBackSheet(){
+  sheetStack.pop();
+  const prev = sheetStack[sheetStack.length-1];
+  if(prev){
+    prev();
+    document.getElementById('sheetBack').style.display = sheetStack.length > 1 ? 'flex' : 'none';
+  }else{
+    document.getElementById('sheetOverlay').classList.remove('show');
+  }
+}
+document.getElementById('sheetBack').addEventListener('click', goBackSheet);
+
+function bindSheetLinks(){
+  document.getElementById('shBody').querySelectorAll('.tpi-link[data-tpi]').forEach(el=>{
+    el.addEventListener('click', ()=> pushSheet(()=>renderVehicleProfile(el.dataset.tpi)));
+  });
+  document.getElementById('shBody').querySelectorAll('.code-link[data-code]').forEach(el=>{
+    el.addEventListener('click', ()=> pushSheet(()=>renderErrorProfile(el.dataset.code)));
+  });
+  document.getElementById('shBody').querySelectorAll('.mini-row[data-id]').forEach(el=>{
+    el.addEventListener('click', ()=> pushSheet(()=>renderDetail(el.dataset.id)));
+  });
+  document.getElementById('shBody').querySelectorAll('.mini-row[data-tpi]').forEach(el=>{
+    el.addEventListener('click', ()=> pushSheet(()=>renderVehicleProfile(el.dataset.tpi)));
+  });
+}
+
+function monthLabel(dateStr){
+  if(!dateStr) return 'ไม่ระบุ';
+  const m = dateStr.match(/(\d{4})-(\d{2})/) || dateStr.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if(dateStr.includes('-')){
+    const parts = dateStr.split('-');
+    if(parts[0].length===4) return parts[0]+'-'+parts[1];
+  }
+  return dateStr.length>=7 ? dateStr.slice(0,7) : dateStr;
+}
+
+function renderDetail(id){
+  clearCharts();
   const r = records.find(x=>x.id===id);
   if(!r) return;
-  document.getElementById('shTpi').textContent = r.tpiCode || '—';
+  document.getElementById('shTpi').innerHTML = `<span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span>`;
   document.getElementById('shSub').textContent = `${r.date||''} ${r.timeFrom||''}${r.timeTo?'-'+r.timeTo:''} · WO ${r.workOrder||'—'}`;
   const row = (label, val) => `<div class="kv"><label>${label}</label><div class="v">${val || '<span style="color:var(--text-dim)">—</span>'}</div></div>`;
   const meta = sysMeta(r.system);
   document.getElementById('shBody').innerHTML = `
     ${row('อาการ / รายละเอียด', r.symptom)}
-    ${row('Error Code', r.errorCode)}
+    ${row('Error Code', r.errorCode ? `<span class="tpi-link code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : '')}
     ${row('ระบบที่เกี่ยวข้อง', meta ? meta.l : 'ยังไม่ระบุ')}
     ${row('อุปกรณ์ต้นเหตุ', r.component)}
     ${row('สาเหตุเบื้องต้น', r.rootCauseInitial)}
@@ -375,8 +458,171 @@ function openSheet(id){
     ${row('แก้หายถาวรหรือไม่', r.resolvedPermanent)}
     ${SHEET_EDIT_URL ? `<a class="edit-link" href="${SHEET_EDIT_URL}" target="_blank" rel="noopener">แก้ไขข้อมูลนี้ใน Google Sheet ↗</a>` : ''}
   `;
-  document.getElementById('sheetOverlay').classList.add('show');
+  bindSheetLinks();
 }
+
+function renderVehicleProfile(tpiCode){
+  clearCharts();
+  const list = records.filter(r => r.tpiCode === tpiCode).sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  document.getElementById('shTpi').textContent = tpiCode || '—';
+  document.getElementById('shSub').textContent = 'ประวัติ error ทั้งหมดของคันนี้';
+
+  const unresolved = list.filter(r=>(r.resultStatus||'').includes('ไม่เสร็จ')).length;
+  const distinctCodes = new Set(list.map(r=>r.errorCode).filter(Boolean)).size;
+
+  const bySystem = {};
+  list.forEach(r=>{ const k = r.system || 'UNSET'; bySystem[k] = (bySystem[k]||0)+1; });
+  const byMonth = {};
+  list.forEach(r=>{ const k = monthLabel(r.date); byMonth[k] = (byMonth[k]||0)+1; });
+  const months = Object.keys(byMonth).sort();
+
+  const byCode = {};
+  list.forEach(r=>{
+    if(!r.errorCode) return;
+    byCode[r.errorCode] = byCode[r.errorCode] || {count:0, last:''};
+    byCode[r.errorCode].count++;
+    if(!byCode[r.errorCode].last || r.date > byCode[r.errorCode].last) byCode[r.errorCode].last = r.date;
+  });
+  const topCodes = Object.entries(byCode).sort((a,b)=>b[1].count-a[1].count);
+
+  document.getElementById('shBody').innerHTML = `
+    <div class="profile-stats">
+      <div class="pstat"><b>${list.length}</b><span>ครั้งทั้งหมด</span></div>
+      <div class="pstat"><b>${unresolved}</b><span>ยังไม่เสร็จ</span></div>
+      <div class="pstat"><b>${distinctCodes}</b><span>Error Code ต่างกัน</span></div>
+    </div>
+
+    <div class="profile-section">
+      <h4>ความถี่การเกิด error รายเดือน</h4>
+      <div class="chart-box"><canvas id="chVehTimeline"></canvas></div>
+    </div>
+
+    <div class="profile-section">
+      <h4>แยกตามระบบ</h4>
+      <div class="chart-box"><canvas id="chVehSystem"></canvas></div>
+    </div>
+
+    <div class="profile-section">
+      <h4>Error Code ที่เกิดกับคันนี้</h4>
+      <div class="mini-list">
+        ${topCodes.length ? topCodes.map(([code, d]) => `
+          <div class="mini-row code-link" data-code="${code}">
+            <div><div class="mr-main">${code}</div><div class="mr-sub">ล่าสุด ${d.last||'—'}</div></div>
+            <div class="mr-count">${d.count} ครั้ง</div>
+          </div>`).join('') : '<div style="color:var(--text-dim);font-size:13.5px;">ไม่มี error code บันทึกไว้</div>'}
+      </div>
+    </div>
+
+    <div class="profile-section">
+      <h4>ประวัติทั้งหมด (${list.length})</h4>
+      <div class="mini-list">
+        ${list.map(r => `
+          <div class="mini-row" data-id="${r.id}">
+            <div><div class="mr-main">${r.symptom || r.errorCode || '—'}</div><div class="mr-sub">${r.date||''}${r.errorCode?' · '+r.errorCode:''}</div></div>
+            <div class="mr-count">${r.resultStatus||''}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+  bindSheetLinks();
+
+  const sysColors = {HV:'#d70015',LV:'#0071e3',BMS:'#1a7f37',MOTOR:'#c2650a',CHARGE:'#8944ab',BRAKE:'#0a7a8c',UNSET:'#c7c7cc'};
+  const sysLabels = {HV:'HV',LV:'LV',BMS:'BMS',MOTOR:'Motor/Inverter',CHARGE:'ชาร์จ',BRAKE:'เบรก',UNSET:'ยังไม่ระบุ'};
+
+  activeCharts.push(new Chart(document.getElementById('chVehTimeline'), {
+    type:'bar',
+    data:{ labels: months, datasets:[{ data: months.map(m=>byMonth[m]), backgroundColor:'#0071e3', borderRadius:6, maxBarThickness:28 }] },
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{grid:{display:false}} } }
+  }));
+  const sysKeys = Object.keys(bySystem);
+  activeCharts.push(new Chart(document.getElementById('chVehSystem'), {
+    type:'bar',
+    data:{ labels: sysKeys.map(k=>sysLabels[k]||k), datasets:[{ data: sysKeys.map(k=>bySystem[k]), backgroundColor: sysKeys.map(k=>sysColors[k]||'#c7c7cc'), borderRadius:6 }] },
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{beginAtZero:true, ticks:{precision:0}}, y:{grid:{display:false}} } }
+  }));
+}
+
+function renderErrorProfile(errorCode){
+  clearCharts();
+  const list = records.filter(r => r.errorCode === errorCode).sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  document.getElementById('shTpi').textContent = errorCode || '—';
+  document.getElementById('shSub').textContent = 'สรุป error code นี้ทั้งระบบ';
+
+  const vehicles = {};
+  list.forEach(r=>{ const k = r.tpiCode || 'ไม่ระบุ'; vehicles[k] = (vehicles[k]||0)+1; });
+  const vehicleList = Object.entries(vehicles).sort((a,b)=>b[1]-a[1]);
+  const resolvedPermanent = list.filter(r=>r.resolvedPermanent==='หายถาวร').length;
+
+  const byMonth = {};
+  list.forEach(r=>{ const k = monthLabel(r.date); byMonth[k] = (byMonth[k]||0)+1; });
+  const months = Object.keys(byMonth).sort();
+
+  const fixCounts = {};
+  list.forEach(r=>{
+    if(!r.fixMethod) return;
+    fixCounts[r.fixMethod] = (fixCounts[r.fixMethod]||0)+1;
+  });
+  const fixList = Object.entries(fixCounts).sort((a,b)=>b[1]-a[1]);
+
+  document.getElementById('shBody').innerHTML = `
+    <div class="profile-stats">
+      <div class="pstat"><b>${list.length}</b><span>ครั้งทั้งหมด</span></div>
+      <div class="pstat"><b>${vehicleList.length}</b><span>คันที่เกิด</span></div>
+      <div class="pstat"><b>${resolvedPermanent}</b><span>แก้หายถาวร</span></div>
+    </div>
+
+    <div class="profile-section">
+      <h4>ความถี่การเกิดรายเดือน</h4>
+      <div class="chart-box"><canvas id="chCodeTimeline"></canvas></div>
+    </div>
+
+    <div class="profile-section">
+      <h4>รถที่เกิด error นี้</h4>
+      <div class="mini-list">
+        ${vehicleList.map(([tpi, c]) => `
+          <div class="mini-row" data-tpi="${tpi}">
+            <div class="mr-main">${tpi}</div>
+            <div class="mr-count">${c} ครั้ง</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    ${fixList.length ? `
+    <div class="profile-section">
+      <h4>วิธีแก้ไขที่เคยใช้</h4>
+      <div class="mini-list">
+        ${fixList.map(([fix, c]) => `
+          <div class="mini-row" style="cursor:default;">
+            <div class="mr-main" style="font-weight:400;">${fix}</div>
+            <div class="mr-count">${c} ครั้ง</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="profile-section">
+      <h4>ประวัติทั้งหมด (${list.length})</h4>
+      <div class="mini-list">
+        ${list.map(r => `
+          <div class="mini-row" data-id="${r.id}">
+            <div><div class="mr-main">${r.tpiCode||'—'}</div><div class="mr-sub">${r.date||''}</div></div>
+            <div class="mr-count">${r.resultStatus||''}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+  `;
+  bindSheetLinks();
+
+  activeCharts.push(new Chart(document.getElementById('chCodeTimeline'), {
+    type:'bar',
+    data:{ labels: months, datasets:[{ data: months.map(m=>byMonth[m]), backgroundColor:'#0071e3', borderRadius:6, maxBarThickness:28 }] },
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{precision:0}}, x:{grid:{display:false}} } }
+  }));
+}
+
+function openSheet(id){ freshSheet(()=>renderDetail(id)); }
+function openVehicleProfile(tpi){ freshSheet(()=>renderVehicleProfile(tpi)); }
+function openErrorProfile(code){ freshSheet(()=>renderErrorProfile(code)); }
+
 document.getElementById('sheetClose').addEventListener('click', ()=>document.getElementById('sheetOverlay').classList.remove('show'));
 document.getElementById('sheetOverlay').addEventListener('click', e=>{
   if(e.target.id === 'sheetOverlay') e.currentTarget.classList.remove('show');
