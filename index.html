@@ -219,7 +219,7 @@
 </div>
 
 <div class="toolbar">
-  <div class="search"><input id="searchInput" placeholder="ค้นหา TPI Code, Error Code, อาการ, อุปกรณ์..."></div>
+  <div class="search"><input id="searchInput" placeholder="พิมพ์หลาย keyword คั่นด้วยเว้นวรรค เช่น 09-514 E101"></div>
 </div>
 
 <div class="tabbar">
@@ -412,9 +412,10 @@ function render(){
   }
 
   if(q){
+    const tokens = q.split(/\s+/).filter(Boolean);
     base = base.filter(r=>{
       const hay = [r.tpiCode,r.errorCode,r.symptom,r.component,r.rootCauseInitial,r.fixMethod,r.technician].join(' ').toLowerCase();
-      return hay.includes(q);
+      return tokens.every(t => hay.includes(t));
     });
     showList = true;
   }
