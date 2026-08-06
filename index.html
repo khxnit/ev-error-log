@@ -80,6 +80,39 @@
   }
   input:focus, select:focus{outline:2px solid var(--blue);outline-offset:1px;}
 
+  .tabbar{
+    max-width:980px;margin:14px auto 0;padding:0 24px;
+  }
+  .tabbar-inner{
+    background:#f2f2f4;border-radius:12px;padding:4px;display:flex;gap:4px;
+  }
+  .tab-btn{
+    flex:1;border:none;background:transparent;padding:9px 4px;border-radius:9px;
+    font-size:13.5px;font-weight:500;color:var(--text-dim);cursor:pointer;
+    transition:.15s;font-family:var(--sans);
+  }
+  .tab-btn.active{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1);}
+
+  .subpanel{max-width:980px;margin:14px auto 0;padding:0 24px;}
+  .chip-grid{display:flex;flex-wrap:wrap;gap:8px;max-height:230px;overflow-y:auto;padding:2px 2px 8px;}
+  .chip-select{
+    padding:8px 14px;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;
+    border:1.5px solid transparent;background:#efeff0;color:var(--text-dim);
+    display:inline-flex;align-items:center;gap:6px;transition:.12s;
+  }
+  .chip-select .n{font-weight:400;opacity:.7;}
+  .chip-select.sel-hv{background:#fde7e9;color:var(--red);}
+  .chip-select.sel-lv{background:#e5f1ff;color:var(--blue);}
+  .chip-select.sel-bms{background:#e6f6ea;color:var(--green);}
+  .chip-select.sel-motor{background:#fdf0e2;color:var(--orange);}
+  .chip-select.sel-charge{background:#f4e9fa;color:var(--purple);}
+  .chip-select.sel-brake{background:#e6f5f6;color:var(--teal);}
+  .chip-select.sel-other{background:#efeff0;color:var(--gray);}
+  .chip-select.active{border-color:currentColor;}
+  .chip-select.vehicle{background:#f5f5f7;color:var(--text);}
+  .chip-select.vehicle.active{border-color:var(--blue);color:var(--blue);background:#e5f1ff;}
+  .history-note{font-size:12.5px;color:var(--text-dim);padding:2px 2px 4px;}
+
   main{max-width:980px;margin:0 auto;padding:18px 24px 70px;}
 
   .state{text-align:center;padding:70px 20px;color:var(--text-dim);}
@@ -185,18 +218,19 @@
   <p>อาการ · สาเหตุ · วิธีแก้ไข — อัพเดทจาก Google Sheet ของทีม</p>
 </div>
 
-<div class="stats">
-  <div class="stat-card"><b id="statTotal">–</b><span>รายการทั้งหมด</span></div>
-  <div class="stat-card"><b id="statUnresolved">–</b><span>ยังไม่เสร็จ</span></div>
-  <div class="stat-card"><b id="statRecur">–</b><span>Error ซ้ำ ≥2 ครั้ง</span></div>
-</div>
-
 <div class="toolbar">
   <div class="search"><input id="searchInput" placeholder="ค้นหา TPI Code, Error Code, อาการ, อุปกรณ์..."></div>
-  <select id="filterSystem"><option value="">ทุกระบบ</option></select>
-  <select id="filterStatus"><option value="">ทุกสถานะ</option></select>
-  <select id="filterTpi"><option value="">ทุกคัน</option></select>
 </div>
+
+<div class="tabbar">
+  <div class="tabbar-inner">
+    <button class="tab-btn active" data-tab="system">ระบบ</button>
+    <button class="tab-btn" data-tab="vehicle">รถทั้งหมด</button>
+    <button class="tab-btn" data-tab="history">ประวัติ</button>
+  </div>
+</div>
+
+<div class="subpanel" id="subPanel"></div>
 
 <main>
   <div class="state" id="stateBox" style="display:none"></div>
@@ -310,56 +344,101 @@ function errorCodeCounts(){
   });
   return map;
 }
-function populateFilters(){
-  const sysSel = document.getElementById('filterSystem');
-  const statusSel = document.getElementById('filterStatus');
-  const tpiSel = document.getElementById('filterTpi');
-  const curSys=sysSel.value, curStatus=statusSel.value, curTpi=tpiSel.value;
-  sysSel.innerHTML = '<option value="">ทุกระบบ</option>' + Object.entries(SYSTEM_META).map(([k,v])=>`<option value="${k}">${v.l}</option>`).join('');
-  const statuses = [...new Set(records.map(r=>r.resultStatus).filter(Boolean))];
-  statusSel.innerHTML = '<option value="">ทุกสถานะ</option>' + statuses.map(s=>`<option value="${s}">${s}</option>`).join('');
-  const tpis = [...new Set(records.map(r=>r.tpiCode).filter(Boolean))].sort();
-  tpiSel.innerHTML = '<option value="">ทุกคัน</option>' + tpis.map(s=>`<option value="${s}">${s}</option>`).join('');
-  sysSel.value=curSys; statusSel.value=curStatus; tpiSel.value=curTpi;
+
+let activeTab = 'system';
+let selectedSystem = '';
+let selectedTpi = '';
+
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    activeTab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b===btn));
+    render();
+  });
+});
+
+function renderSubPanel(){
+  const panel = document.getElementById('subPanel');
+  if(activeTab === 'system'){
+    const counts = {};
+    records.forEach(r=>{ const k=r.system||'UNSET'; counts[k]=(counts[k]||0)+1; });
+    const keys = Object.keys(SYSTEM_META).filter(k=>counts[k]);
+    panel.innerHTML = `<div class="chip-grid">${keys.map(k=>{
+      const m = SYSTEM_META[k];
+      const isActive = selectedSystem===k;
+      return `<button class="chip-select sel-${m.cls} ${isActive?'active':''}" data-sys="${k}">${m.l} <span class="n">${counts[k]}</span></button>`;
+    }).join('')}</div>`;
+    panel.querySelectorAll('[data-sys]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        selectedSystem = selectedSystem===el.dataset.sys ? '' : el.dataset.sys;
+        render();
+      });
+    });
+  }else if(activeTab === 'vehicle'){
+    const counts = {};
+    records.forEach(r=>{ if(r.tpiCode) counts[r.tpiCode]=(counts[r.tpiCode]||0)+1; });
+    const tpis = Object.keys(counts).sort();
+    panel.innerHTML = `<div class="chip-grid">${tpis.map(t=>{
+      const isActive = selectedTpi===t;
+      return `<button class="chip-select vehicle ${isActive?'active':''}" data-tpi="${t}">${t} <span class="n">${counts[t]}</span></button>`;
+    }).join('')}</div>`;
+    panel.querySelectorAll('[data-tpi]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        selectedTpi = selectedTpi===el.dataset.tpi ? '' : el.dataset.tpi;
+        render();
+      });
+    });
+  }else{
+    panel.innerHTML = `<div class="history-note">แสดงประวัติทั้งหมดเรียงจากล่าสุด</div>`;
+  }
 }
 
 function render(){
-  populateFilters();
+  renderSubPanel();
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
-  const fSys = document.getElementById('filterSystem').value;
-  const fStatus = document.getElementById('filterStatus').value;
-  const fTpi = document.getElementById('filterTpi').value;
   const counts = errorCodeCounts();
 
-  let filtered = records.filter(r=>{
-    if(fSys && r.system !== fSys) return false;
-    if(fStatus && r.resultStatus !== fStatus) return false;
-    if(fTpi && r.tpiCode !== fTpi) return false;
-    if(q){
-      const hay = [r.tpiCode,r.errorCode,r.symptom,r.component,r.rootCauseInitial,r.fixMethod,r.technician].join(' ').toLowerCase();
-      if(!hay.includes(q)) return false;
-    }
-    return true;
-  });
-  filtered.sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.timeFrom||'').localeCompare(a.timeFrom||''));
+  let base = records;
+  let showList = false;
 
-  document.getElementById('statTotal').textContent = records.length;
-  document.getElementById('statUnresolved').textContent = records.filter(r=>(r.resultStatus||'').includes('ไม่เสร็จ')).length;
-  document.getElementById('statRecur').textContent = Object.values(counts).filter(c=>c>=2).length;
+  if(activeTab === 'history'){
+    showList = true;
+  }else if(activeTab === 'system' && selectedSystem){
+    base = base.filter(r => r.system === selectedSystem);
+    showList = true;
+  }else if(activeTab === 'vehicle' && selectedTpi){
+    base = base.filter(r => r.tpiCode === selectedTpi);
+    showList = true;
+  }
+
+  if(q){
+    base = base.filter(r=>{
+      const hay = [r.tpiCode,r.errorCode,r.symptom,r.component,r.rootCauseInitial,r.fixMethod,r.technician].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+    showList = true;
+  }
+
+  base = [...base].sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.timeFrom||'').localeCompare(a.timeFrom||''));
 
   const list = document.getElementById('list');
   if(records.length === 0){
     showState(`<h3>ยังไม่มีข้อมูล</h3><p>ยังไม่พบแถวข้อมูลใน Google Sheet ที่เชื่อมไว้ ตรวจสอบว่ามีข้อมูลและหัวคอลัมน์ถูกต้อง</p>`);
     return;
   }
-  if(filtered.length === 0){
+  if(!showList){
     hideState();
-    list.innerHTML = `<div class="state" style="display:block"><h3>ไม่พบผลลัพธ์</h3><p>ลองปรับคำค้นหาหรือตัวกรอง</p></div>`;
+    list.innerHTML = `<div class="state" style="display:block"><h3>พิมพ์ keyword ที่ต้องการค้นหา</h3><p>หรือเลือกระบบ / เลือกรถจากแถบด้านบน หรือไปที่แท็บ "ประวัติ" เพื่อดูทั้งหมด</p></div>`;
+    return;
+  }
+  if(base.length === 0){
+    hideState();
+    list.innerHTML = `<div class="state" style="display:block"><h3>ไม่พบผลลัพธ์</h3><p>ลองปรับคำค้นหาหรือตัวเลือก</p></div>`;
     return;
   }
   hideState();
 
-  list.innerHTML = filtered.map(r=>{
+  list.innerHTML = base.map(r=>{
     const meta = sysMeta(r.system);
     const sysChip = meta ? `<span class="chip ${meta.cls}">${meta.l}</span>` : `<span class="chip unset">ยังไม่ระบุระบบ</span>`;
     const key = (r.tpiCode||'')+'|'+r.errorCode;
@@ -640,7 +719,6 @@ document.getElementById('sheetOverlay').addEventListener('click', e=>{
 });
 
 ['searchInput'].forEach(id=>document.getElementById(id).addEventListener('input', render));
-['filterSystem','filterStatus','filterTpi'].forEach(id=>document.getElementById(id).addEventListener('change', render));
 
 loadData(false);
 </script>
