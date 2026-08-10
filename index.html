@@ -113,6 +113,23 @@
   .chip-select.vehicle.active{border-color:var(--blue);color:var(--blue);background:#e5f1ff;}
   .history-note{font-size:12.5px;color:var(--text-dim);padding:2px 2px 4px;}
 
+  .diagram-row{
+    display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:14px 16px;text-decoration:none;color:var(--text);transition:.12s;
+  }
+  .diagram-row:hover{border-color:#b0b0b5;box-shadow:var(--shadow);}
+  .diagram-icon{
+    width:38px;height:38px;border-radius:9px;background:#fde7e9;color:var(--red);
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;
+  }
+  .diagram-title{font-size:14.5px;font-weight:500;}
+  .diagram-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+  .diagram-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 20px;}
+  .diagram-chip{
+    text-decoration:none;padding:7px 13px;font-size:12.5px;
+  }
+
   main{max-width:980px;margin:0 auto;padding:18px 24px 70px;}
 
   .state{text-align:center;padding:70px 20px;color:var(--text-dim);}
@@ -227,6 +244,7 @@
     <button class="tab-btn active" data-tab="system">ระบบ</button>
     <button class="tab-btn" data-tab="vehicle">รถทั้งหมด</button>
     <button class="tab-btn" data-tab="history">ประวัติ</button>
+    <button class="tab-btn" data-tab="diagram">วงจรไฟ</button>
   </div>
 </div>
 
@@ -255,6 +273,37 @@ const DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7fagc
 const params = new URLSearchParams(location.search);
 const CSV_URL = params.get('csv') || DEFAULT_CSV_URL;
 const SHEET_EDIT_URL = params.get('edit') || "";
+
+/* รายการไฟล์วงจรไฟ (PDF) — เพิ่มทีละรายการที่นี่หลังอัพโหลดไฟล์เข้าโฟลเดอร์ diagrams/ ใน repo เดียวกัน
+   title = ชื่อที่จะแสดงในเว็บ, file = path ของไฟล์ (ตรงกับชื่อไฟล์ที่อัพโหลดจริง)
+   type  = "HV" | "LV" | "FUSE" | "COOLING" | "OTHER" (กำหนดสีไอคอน)
+   prefixes = LOT/รุ่นที่ใช้ไฟล์นี้ — ใส่ตัวเลขก่อนขีดของ TPI Code เช่น "09-518" prefix คือ "09"
+   vehicles = ใช้แทน prefixes ถ้าไฟล์นี้ใช้ได้กับรถบางคันเท่านั้น (ไม่ใช่ทั้ง LOT) — ใส่ TPI Code เต็มๆ
+   ถ้าไม่ใส่ทั้ง prefixes และ vehicles เลย = ไฟล์นี้ใช้ได้กับรถทุกคัน */
+const DIAGRAM_FILES = [
+  { title: "วงจร Fuse Box", file: "diagrams/fuse-box-lot3.pdf", type: "FUSE",
+    vehicles: ["09-504","09-511","09-514","09-515","09-523","09-524","09-527","09-502","09-608"] },
+  // { title: "วงจรไฟ HV LOT 09", file: "diagrams/hv-09.pdf", type: "HV", prefixes: ["09"] },
+  // { title: "วงจรไฟ LV LOT 09", file: "diagrams/lv-09.pdf", type: "LV", prefixes: ["09"] },
+  // { title: "วงจรน้ำหล่อเย็น LOT 08", file: "diagrams/cooling-08.pdf", type: "COOLING", prefixes: ["08"] },
+];
+const DIAGRAM_TYPE_CLASS = {HV:'hv', LV:'lv', FUSE:'motor', COOLING:'brake', OTHER:'other'};
+function getDiagramsForTpi(tpiCode){
+  const prefix = (tpiCode||'').split('-')[0];
+  return DIAGRAM_FILES.filter(d=>{
+    if(d.vehicles && d.vehicles.length) return d.vehicles.includes(tpiCode);
+    if(d.prefixes && d.prefixes.length) return d.prefixes.includes(prefix);
+    return true;
+  });
+}
+function diagramChipsHtml(tpiCode){
+  const items = getDiagramsForTpi(tpiCode);
+  if(!items.length) return '';
+  return `<div class="diagram-chip-row">${items.map(d=>{
+    const cls = DIAGRAM_TYPE_CLASS[d.type] || 'other';
+    return `<a class="chip diagram-chip ${cls}" href="${d.file}" target="_blank" rel="noopener">📄 ${d.title}</a>`;
+  }).join('')}</div>`;
+}
 
 const SYSTEM_META = {
   'HV': {l:'HV แรงดันสูง', cls:'hv'},
@@ -388,14 +437,40 @@ function renderSubPanel(){
         render();
       });
     });
-  }else{
+  }else if(activeTab === 'history'){
     panel.innerHTML = `<div class="history-note">แสดงประวัติทั้งหมดเรียงจากล่าสุด</div>`;
+  }else{
+    panel.innerHTML = `<div class="history-note">ไฟล์วงจรไฟสำหรับทีมหน้างาน — กดเพื่อเปิดดู PDF</div>`;
   }
 }
 
 function render(){
   renderSubPanel();
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
+
+  if(activeTab === 'diagram'){
+    const list = document.getElementById('list');
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const filtered = DIAGRAM_FILES.filter(d => tokens.every(t => d.title.toLowerCase().includes(t)));
+    if(DIAGRAM_FILES.length === 0){
+      hideState();
+      list.innerHTML = `<div class="state" style="display:block"><h3>ยังไม่มีไฟล์วงจรไฟ</h3><p>ผู้ดูแลเว็บยังไม่ได้เพิ่มไฟล์ PDF ไว้ในหมวดนี้</p></div>`;
+      return;
+    }
+    if(filtered.length === 0){
+      hideState();
+      list.innerHTML = `<div class="state" style="display:block"><h3>ไม่พบผลลัพธ์</h3><p>ลองปรับคำค้นหา</p></div>`;
+      return;
+    }
+    hideState();
+    list.innerHTML = filtered.map(d => `
+      <a class="diagram-row" href="${d.file}" target="_blank" rel="noopener">
+        <div class="diagram-icon">PDF</div>
+        <div><div class="diagram-title">${d.title}</div><div class="diagram-sub">เปิดในแท็บใหม่</div></div>
+      </a>`).join('');
+    return;
+  }
+
   const counts = errorCodeCounts();
 
   let base = records;
@@ -538,6 +613,7 @@ function renderDetail(id){
   const row = (label, val) => `<div class="kv"><label>${label}</label><div class="v">${val || '<span style="color:var(--text-dim)">—</span>'}</div></div>`;
   const meta = sysMeta(r.system);
   document.getElementById('shBody').innerHTML = `
+    ${diagramChipsHtml(r.tpiCode)}
     ${row('อาการ / รายละเอียด', r.symptom)}
     ${row('Error Code', r.errorCode ? `<span class="tpi-link code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : '')}
     ${row('ระบบที่เกี่ยวข้อง', meta ? meta.l : 'ยังไม่ระบุ')}
@@ -577,6 +653,7 @@ function renderVehicleProfile(tpiCode){
   const topCodes = Object.entries(byCode).sort((a,b)=>b[1].count-a[1].count);
 
   document.getElementById('shBody').innerHTML = `
+    ${diagramChipsHtml(tpiCode)}
     <div class="profile-stats">
       <div class="pstat"><b>${list.length}</b><span>ครั้งทั้งหมด</span></div>
       <div class="pstat"><b>${unresolved}</b><span>ยังไม่เสร็จ</span></div>
