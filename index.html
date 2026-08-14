@@ -124,6 +124,11 @@
   }
   .diagram-title{font-size:14.5px;font-weight:500;}
   .diagram-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+  .diagram-section-title{
+    font-size:12.5px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
+    letter-spacing:.03em;margin:18px 0 8px;
+  }
+  .diagram-section-title:first-child{margin-top:0;}
 
   .diagram-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 20px;}
   .diagram-chip{
@@ -454,7 +459,10 @@ function render(){
   if(activeTab === 'diagram'){
     const list = document.getElementById('list');
     const tokens = q.split(/\s+/).filter(Boolean);
-    const filtered = DIAGRAM_FILES.filter(d => tokens.every(t => d.title.toLowerCase().includes(t)));
+    const filtered = DIAGRAM_FILES.filter(d=>{
+      const hay = [d.title, ...(d.vehicles||[]), ...(d.prefixes||[])].join(' ').toLowerCase();
+      return tokens.every(t => hay.includes(t));
+    });
     if(DIAGRAM_FILES.length === 0){
       hideState();
       list.innerHTML = `<div class="state" style="display:block"><h3>ยังไม่มีไฟล์วงจรไฟ</h3><p>ผู้ดูแลเว็บยังไม่ได้เพิ่มไฟล์ PDF ไว้ในหมวดนี้</p></div>`;
@@ -466,11 +474,24 @@ function render(){
       return;
     }
     hideState();
-    list.innerHTML = filtered.map(d => `
-      <a class="diagram-row" href="${d.file}" target="_blank" rel="noopener">
-        <div class="diagram-icon">PDF</div>
-        <div><div class="diagram-title">${d.title}</div><div class="diagram-sub">เปิดในแท็บใหม่</div></div>
-      </a>`).join('');
+    const typeOrder = ['FUSE','HV','LV','COOLING','OTHER'];
+    const typeLabel = {FUSE:'Fuse Box', HV:'HV แรงดันสูง', LV:'LV แรงดันต่ำ', COOLING:'Cooling น้ำหล่อเย็น', OTHER:'อื่นๆ'};
+    const groups = {};
+    filtered.forEach(d=>{ const t = d.type || 'OTHER'; (groups[t] = groups[t]||[]).push(d); });
+    const scope = d => {
+      if(d.vehicles && d.vehicles.length) return `ใช้กับ ${d.vehicles.length} คัน: ${d.vehicles.join(', ')}`;
+      if(d.prefixes && d.prefixes.length) return `LOT ${d.prefixes.join(', ')}`;
+      return 'ใช้ได้ทุกคัน';
+    };
+    list.innerHTML = typeOrder.filter(t=>groups[t]).map(t => `
+      <div class="diagram-section-title">${typeLabel[t]}</div>
+      <div class="list" style="margin-bottom:18px;">
+        ${groups[t].map(d => `
+          <a class="diagram-row" href="${d.file}" target="_blank" rel="noopener">
+            <div class="diagram-icon">${(d.file.split('.').pop()||'FILE').toUpperCase()}</div>
+            <div><div class="diagram-title">${d.title}</div><div class="diagram-sub">${scope(d)}</div></div>
+          </a>`).join('')}
+      </div>`).join('');
     return;
   }
 
