@@ -283,9 +283,10 @@ const SHEET_EDIT_URL = params.get('edit') || "";
 const DIAGRAM_FILES = [
   { title: "วงจร Fuse Box", file: "diagrams/fuse-box-lot3.pdf", type: "FUSE",
     vehicles: ["09-504","09-511","09-514","09-515","09-523","09-524","09-527","09-502","09-608"] },
+  { title: "วงจรน้ำหล่อเย็น (Cooling) LOT3 H55", file: "diagrams/LOT3_H55_Cooling.pdf", type: "COOLING",
+    vehicles: ["09-514","09-515","09-502","09-608"] },
   // { title: "วงจรไฟ HV LOT 09", file: "diagrams/hv-09.pdf", type: "HV", prefixes: ["09"] },
   // { title: "วงจรไฟ LV LOT 09", file: "diagrams/lv-09.pdf", type: "LV", prefixes: ["09"] },
-  // { title: "วงจรน้ำหล่อเย็น LOT 08", file: "diagrams/cooling-08.pdf", type: "COOLING", prefixes: ["08"] },
 ];
 const DIAGRAM_TYPE_CLASS = {HV:'hv', LV:'lv', FUSE:'motor', COOLING:'brake', OTHER:'other'};
 function getDiagramsForTpi(tpiCode){
