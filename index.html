@@ -143,8 +143,8 @@
     scrollbar-width:none;
   }
   .photo-carousel::-webkit-scrollbar{display:none;}
-  .photo-carousel a{
-    flex:0 0 100%;scroll-snap-align:start;display:block;
+  .photo-carousel .photo-slide{
+    flex:0 0 100%;scroll-snap-align:start;display:block;cursor:zoom-in;
   }
   .photo-carousel img{
     width:100%;height:240px;object-fit:cover;display:block;background:#f5f5f7;
@@ -159,6 +159,26 @@
   .photo-count{
     position:absolute;top:12px;right:12px;background:rgba(0,0,0,.45);color:#fff;
     font-size:11px;font-weight:600;padding:3px 9px;border-radius:100px;
+  }
+
+  .lightbox{
+    position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:80;display:none;
+    align-items:center;justify-content:center;overflow:hidden;touch-action:none;
+  }
+  .lightbox.show{display:flex;}
+  .lightbox img{
+    max-width:92vw;max-height:88vh;object-fit:contain;transform-origin:center center;
+    transition:transform .15s ease-out;will-change:transform;user-select:none;-webkit-user-drag:none;
+  }
+  .lightbox img.zoomed{cursor:grab;}
+  .lightbox-close{
+    position:absolute;top:18px;right:18px;width:38px;height:38px;border-radius:50%;
+    background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;z-index:2;
+  }
+  .lightbox-hint{
+    position:absolute;bottom:20px;left:0;right:0;text-align:center;
+    color:rgba(255,255,255,.55);font-size:12px;
   }
 
   main{max-width:980px;margin:0 auto;padding:18px 24px 70px;}
@@ -295,6 +315,12 @@
     </div>
     <div class="sheet-body" id="shBody"></div>
   </div>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose">✕</button>
+  <img id="lightboxImg" src="" alt="ภาพประกอบ">
+  <div class="lightbox-hint">แตะสองครั้งหรือย่อ-ขยายด้วยสองนิ้วเพื่อซูม</div>
 </div>
 
 <script>
@@ -627,7 +653,7 @@ function renderDetail(id){
   const imagesHtml = images.length ? `
     <div class="photo-carousel-wrap">
       <div class="photo-carousel" id="photoCarousel">
-        ${images.map(src => `<a href="${src}" target="_blank" rel="noopener"><img src="${src}" loading="lazy" alt="ภาพประกอบ"></a>`).join('')}
+        ${images.map(src => `<div class="photo-slide" data-src="${src}"><img src="${src}" loading="lazy" alt="ภาพประกอบ"></div>`).join('')}
       </div>
       ${images.length > 1 ? `<div class="photo-count" id="photoCount">1/${images.length}</div>
       <div class="photo-dots" id="photoDots">${images.map((_,i)=>`<span class="${i===0?'active':''}"></span>`).join('')}</div>` : ''}
@@ -647,6 +673,11 @@ function renderDetail(id){
     ${SHEET_EDIT_URL ? `<a class="edit-link" href="${SHEET_EDIT_URL}" target="_blank" rel="noopener">แก้ไขข้อมูลนี้ใน Google Sheet ↗</a>` : ''}
   `;
   bindSheetLinks();
+  if(images.length){
+    document.getElementById('photoCarousel').querySelectorAll('.photo-slide').forEach(el=>{
+      el.addEventListener('click', ()=> openLightbox(el.dataset.src));
+    });
+  }
   if(images.length > 1){
     const carousel = document.getElementById('photoCarousel');
     const dots = document.getElementById('photoDots').children;
@@ -828,6 +859,106 @@ document.getElementById('sheetOverlay').addEventListener('click', e=>{
 });
 
 ['searchInput'].forEach(id=>document.getElementById(id).addEventListener('input', render));
+
+/* ---- Lightbox (tap image to zoom, no navigation away) ---- */
+const lightbox = document.getElementById('lightbox');
+const lightboxImg = document.getElementById('lightboxImg');
+let lbScale = 1, lbX = 0, lbY = 0;
+
+function applyLbTransform(){
+  lightboxImg.style.transform = `translate(${lbX}px, ${lbY}px) scale(${lbScale})`;
+  lightboxImg.classList.toggle('zoomed', lbScale > 1);
+}
+function resetLbZoom(){ lbScale = 1; lbX = 0; lbY = 0; applyLbTransform(); }
+function openLightbox(src){
+  lightboxImg.src = src;
+  resetLbZoom();
+  lightbox.classList.add('show');
+}
+function closeLightbox(){
+  lightbox.classList.remove('show');
+  lightboxImg.src = '';
+}
+document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+lightbox.addEventListener('click', e=>{
+  if(e.target === lightbox) closeLightbox();
+});
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && lightbox.classList.contains('show')) closeLightbox();
+});
+
+/* double-click / double-tap toggles zoom, centered on the tap point */
+let lastTapTime = 0;
+function toggleZoomAt(clientX, clientY){
+  const rect = lightboxImg.getBoundingClientRect();
+  if(lbScale === 1){
+    const offsetX = clientX - (rect.left + rect.width/2);
+    const offsetY = clientY - (rect.top + rect.height/2);
+    lbScale = 2.5;
+    lbX = -offsetX * (lbScale - 1);
+    lbY = -offsetY * (lbScale - 1);
+  }else{
+    lbScale = 1; lbX = 0; lbY = 0;
+  }
+  applyLbTransform();
+}
+lightboxImg.addEventListener('dblclick', e=>{ e.preventDefault(); toggleZoomAt(e.clientX, e.clientY); });
+lightboxImg.addEventListener('touchend', e=>{
+  const now = Date.now();
+  if(now - lastTapTime < 300 && e.changedTouches.length === 1){
+    e.preventDefault();
+    toggleZoomAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }
+  lastTapTime = now;
+});
+
+/* mouse wheel zoom (desktop) */
+lightbox.addEventListener('wheel', e=>{
+  e.preventDefault();
+  lbScale = Math.min(4, Math.max(1, lbScale + (e.deltaY < 0 ? 0.25 : -0.25)));
+  if(lbScale === 1){ lbX = 0; lbY = 0; }
+  applyLbTransform();
+}, {passive:false});
+
+/* drag to pan when zoomed (mouse) */
+let dragging = false, dragStartX = 0, dragStartY = 0, startLbX = 0, startLbY = 0;
+lightboxImg.addEventListener('mousedown', e=>{
+  if(lbScale === 1) return;
+  dragging = true; dragStartX = e.clientX; dragStartY = e.clientY; startLbX = lbX; startLbY = lbY;
+});
+window.addEventListener('mousemove', e=>{
+  if(!dragging) return;
+  lbX = startLbX + (e.clientX - dragStartX);
+  lbY = startLbY + (e.clientY - dragStartY);
+  applyLbTransform();
+});
+window.addEventListener('mouseup', ()=>{ dragging = false; });
+
+/* pinch-to-zoom (touch) */
+let pinchStartDist = 0, pinchStartScale = 1;
+lightboxImg.addEventListener('touchstart', e=>{
+  if(e.touches.length === 2){
+    pinchStartDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    pinchStartScale = lbScale;
+  }else if(e.touches.length === 1 && lbScale > 1){
+    dragging = true; dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY; startLbX = lbX; startLbY = lbY;
+  }
+}, {passive:true});
+lightboxImg.addEventListener('touchmove', e=>{
+  if(e.touches.length === 2){
+    e.preventDefault();
+    const dist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
+    lbScale = Math.min(4, Math.max(1, pinchStartScale * (dist / pinchStartDist)));
+    if(lbScale === 1){ lbX = 0; lbY = 0; }
+    applyLbTransform();
+  }else if(e.touches.length === 1 && dragging){
+    e.preventDefault();
+    lbX = startLbX + (e.touches[0].clientX - dragStartX);
+    lbY = startLbY + (e.touches[0].clientY - dragStartY);
+    applyLbTransform();
+  }
+}, {passive:false});
+lightboxImg.addEventListener('touchend', ()=>{ dragging = false; });
 
 loadData(false);
 </script>
