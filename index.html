@@ -180,6 +180,18 @@
     position:absolute;bottom:20px;left:0;right:0;text-align:center;
     color:rgba(255,255,255,.55);font-size:12px;
   }
+  .lightbox-nav{
+    position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+    background:rgba(255,255,255,.12);border:none;color:#fff;font-size:24px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;z-index:2;line-height:1;
+  }
+  .lightbox-nav.prev{left:12px;}
+  .lightbox-nav.next{right:12px;}
+  .lightbox-nav:disabled{opacity:0;pointer-events:none;}
+  .lightbox-count{
+    position:absolute;top:22px;left:0;right:0;text-align:center;color:rgba(255,255,255,.7);
+    font-size:12.5px;font-weight:600;
+  }
 
   main{max-width:980px;margin:0 auto;padding:18px 24px 70px;}
 
@@ -290,16 +302,6 @@
   <div class="search"><input id="searchInput" placeholder="พิมพ์หลาย keyword คั่นด้วยเว้นวรรค เช่น 09-514 E101"></div>
 </div>
 
-<div class="tabbar">
-  <div class="tabbar-inner">
-    <button class="tab-btn active" data-tab="system">ระบบ</button>
-    <button class="tab-btn" data-tab="vehicle">รถทั้งหมด</button>
-    <button class="tab-btn" data-tab="history">ประวัติ</button>
-  </div>
-</div>
-
-<div class="subpanel" id="subPanel"></div>
-
 <main>
   <div class="state" id="stateBox" style="display:none"></div>
   <div class="list" id="list"></div>
@@ -319,8 +321,11 @@
 
 <div class="lightbox" id="lightbox">
   <button class="lightbox-close" id="lightboxClose">✕</button>
+  <button class="lightbox-nav prev" id="lightboxPrev">‹</button>
   <img id="lightboxImg" src="" alt="ภาพประกอบ">
-  <div class="lightbox-hint">แตะสองครั้งหรือย่อ-ขยายด้วยสองนิ้วเพื่อซูม</div>
+  <button class="lightbox-nav next" id="lightboxNext">›</button>
+  <div class="lightbox-count" id="lightboxCount"></div>
+  <div class="lightbox-hint">ปัดซ้าย-ขวาเพื่อดูรูปอื่น · แตะสองครั้งหรือบีบสองนิ้วเพื่อซูม</div>
 </div>
 
 <script>
@@ -456,72 +461,12 @@ function errorCodeCounts(){
   return map;
 }
 
-let activeTab = 'system';
-let selectedSystem = '';
-let selectedTpi = '';
-
-document.querySelectorAll('.tab-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    activeTab = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b===btn));
-    render();
-  });
-});
-
-function renderSubPanel(){
-  const panel = document.getElementById('subPanel');
-  if(activeTab === 'system'){
-    const counts = {};
-    records.forEach(r=>{ const k=r.system||'UNSET'; counts[k]=(counts[k]||0)+1; });
-    const keys = Object.keys(SYSTEM_META).filter(k=>counts[k]);
-    panel.innerHTML = `<div class="chip-grid">${keys.map(k=>{
-      const m = SYSTEM_META[k];
-      const isActive = selectedSystem===k;
-      return `<button class="chip-select sel-${m.cls} ${isActive?'active':''}" data-sys="${k}">${m.l} <span class="n">${counts[k]}</span></button>`;
-    }).join('')}</div>`;
-    panel.querySelectorAll('[data-sys]').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        selectedSystem = selectedSystem===el.dataset.sys ? '' : el.dataset.sys;
-        render();
-      });
-    });
-  }else if(activeTab === 'vehicle'){
-    const counts = {};
-    records.forEach(r=>{ if(r.tpiCode) counts[r.tpiCode]=(counts[r.tpiCode]||0)+1; });
-    const tpis = Object.keys(counts).sort();
-    panel.innerHTML = `<div class="chip-grid">${tpis.map(t=>{
-      const isActive = selectedTpi===t;
-      return `<button class="chip-select vehicle ${isActive?'active':''}" data-tpi="${t}">${t} <span class="n">${counts[t]}</span></button>`;
-    }).join('')}</div>`;
-    panel.querySelectorAll('[data-tpi]').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        selectedTpi = selectedTpi===el.dataset.tpi ? '' : el.dataset.tpi;
-        render();
-      });
-    });
-  }else{
-    panel.innerHTML = `<div class="history-note">แสดงประวัติทั้งหมดเรียงจากล่าสุด</div>`;
-  }
-}
-
 function render(){
-  renderSubPanel();
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
-
   const counts = errorCodeCounts();
 
   let base = records;
   let showList = false;
-
-  if(activeTab === 'history'){
-    showList = true;
-  }else if(activeTab === 'system' && selectedSystem){
-    base = base.filter(r => r.system === selectedSystem);
-    showList = true;
-  }else if(activeTab === 'vehicle' && selectedTpi){
-    base = base.filter(r => r.tpiCode === selectedTpi);
-    showList = true;
-  }
 
   if(q){
     const tokens = q.split(/\s+/).filter(Boolean);
@@ -541,7 +486,7 @@ function render(){
   }
   if(!showList){
     hideState();
-    list.innerHTML = `<div class="state" style="display:block"><h3>พิมพ์ keyword ที่ต้องการค้นหา</h3><p>หรือเลือกระบบ / เลือกรถจากแถบด้านบน หรือไปที่แท็บ "ประวัติ" เพื่อดูทั้งหมด</p></div>`;
+    list.innerHTML = `<div class="state" style="display:block"><h3>พิมพ์ keyword ที่ต้องการค้นหา</h3><p>เช่น เบอร์รถ, Error Code, หรืออาการที่เกิด</p></div>`;
     return;
   }
   if(base.length === 0){
@@ -674,8 +619,8 @@ function renderDetail(id){
   `;
   bindSheetLinks();
   if(images.length){
-    document.getElementById('photoCarousel').querySelectorAll('.photo-slide').forEach(el=>{
-      el.addEventListener('click', ()=> openLightbox(el.dataset.src));
+    document.getElementById('photoCarousel').querySelectorAll('.photo-slide').forEach((el, i)=>{
+      el.addEventListener('click', ()=> openLightbox(images, i));
     });
   }
   if(images.length > 1){
@@ -860,31 +805,52 @@ document.getElementById('sheetOverlay').addEventListener('click', e=>{
 
 ['searchInput'].forEach(id=>document.getElementById(id).addEventListener('input', render));
 
-/* ---- Lightbox (tap image to zoom, no navigation away) ---- */
+/* ---- Lightbox (tap image to zoom/swipe, no navigation away) ---- */
 const lightbox = document.getElementById('lightbox');
 const lightboxImg = document.getElementById('lightboxImg');
+const lightboxCount = document.getElementById('lightboxCount');
+const lbPrevBtn = document.getElementById('lightboxPrev');
+const lbNextBtn = document.getElementById('lightboxNext');
 let lbScale = 1, lbX = 0, lbY = 0;
+let lbImages = [], lbIndex = 0;
 
 function applyLbTransform(){
   lightboxImg.style.transform = `translate(${lbX}px, ${lbY}px) scale(${lbScale})`;
   lightboxImg.classList.toggle('zoomed', lbScale > 1);
 }
 function resetLbZoom(){ lbScale = 1; lbX = 0; lbY = 0; applyLbTransform(); }
-function openLightbox(src){
-  lightboxImg.src = src;
+function showLbImage(index){
+  lbIndex = Math.max(0, Math.min(lbImages.length - 1, index));
+  lightboxImg.src = lbImages[lbIndex];
   resetLbZoom();
+  const multi = lbImages.length > 1;
+  lightboxCount.textContent = multi ? `${lbIndex+1}/${lbImages.length}` : '';
+  lbPrevBtn.disabled = !multi || lbIndex === 0;
+  lbNextBtn.disabled = !multi || lbIndex === lbImages.length - 1;
+}
+function openLightbox(images, index){
+  lbImages = images;
+  showLbImage(index);
   lightbox.classList.add('show');
 }
 function closeLightbox(){
   lightbox.classList.remove('show');
   lightboxImg.src = '';
+  // keep the underlying carousel in sync with whichever image was last viewed
+  const carousel = document.getElementById('photoCarousel');
+  if(carousel) carousel.scrollTo({left: lbIndex * carousel.clientWidth, behavior:'instant'});
 }
 document.getElementById('lightboxClose').addEventListener('click', closeLightbox);
+lbPrevBtn.addEventListener('click', ()=> showLbImage(lbIndex - 1));
+lbNextBtn.addEventListener('click', ()=> showLbImage(lbIndex + 1));
 lightbox.addEventListener('click', e=>{
   if(e.target === lightbox) closeLightbox();
 });
 document.addEventListener('keydown', e=>{
-  if(e.key === 'Escape' && lightbox.classList.contains('show')) closeLightbox();
+  if(!lightbox.classList.contains('show')) return;
+  if(e.key === 'Escape') closeLightbox();
+  if(e.key === 'ArrowLeft') showLbImage(lbIndex - 1);
+  if(e.key === 'ArrowRight') showLbImage(lbIndex + 1);
 });
 
 /* double-click / double-tap toggles zoom, centered on the tap point */
@@ -903,14 +869,6 @@ function toggleZoomAt(clientX, clientY){
   applyLbTransform();
 }
 lightboxImg.addEventListener('dblclick', e=>{ e.preventDefault(); toggleZoomAt(e.clientX, e.clientY); });
-lightboxImg.addEventListener('touchend', e=>{
-  const now = Date.now();
-  if(now - lastTapTime < 300 && e.changedTouches.length === 1){
-    e.preventDefault();
-    toggleZoomAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-  }
-  lastTapTime = now;
-});
 
 /* mouse wheel zoom (desktop) */
 lightbox.addEventListener('wheel', e=>{
@@ -934,14 +892,18 @@ window.addEventListener('mousemove', e=>{
 });
 window.addEventListener('mouseup', ()=>{ dragging = false; });
 
-/* pinch-to-zoom (touch) */
+/* touch: pinch-to-zoom, pan when zoomed, swipe left/right to switch image when not zoomed */
 let pinchStartDist = 0, pinchStartScale = 1;
+let swipeStartX = 0, swipeStartY = 0, isSwipe = false;
 lightboxImg.addEventListener('touchstart', e=>{
   if(e.touches.length === 2){
     pinchStartDist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY);
     pinchStartScale = lbScale;
+    isSwipe = false;
   }else if(e.touches.length === 1 && lbScale > 1){
     dragging = true; dragStartX = e.touches[0].clientX; dragStartY = e.touches[0].clientY; startLbX = lbX; startLbY = lbY;
+  }else if(e.touches.length === 1){
+    swipeStartX = e.touches[0].clientX; swipeStartY = e.touches[0].clientY; isSwipe = true;
   }
 }, {passive:true});
 lightboxImg.addEventListener('touchmove', e=>{
@@ -957,8 +919,22 @@ lightboxImg.addEventListener('touchmove', e=>{
     lbY = startLbY + (e.touches[0].clientY - dragStartY);
     applyLbTransform();
   }
+  // swipe (scale===1) is tracked passively; actual navigation happens on touchend
 }, {passive:false});
-lightboxImg.addEventListener('touchend', ()=>{ dragging = false; });
+lightboxImg.addEventListener('touchend', e=>{
+  const now = Date.now();
+  if(now - lastTapTime < 300 && e.changedTouches.length === 1 && !isSwipe){
+    toggleZoomAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+  }else if(isSwipe && lbScale === 1 && e.changedTouches.length === 1){
+    const dx = e.changedTouches[0].clientX - swipeStartX;
+    const dy = e.changedTouches[0].clientY - swipeStartY;
+    if(Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)){
+      showLbImage(lbIndex + (dx < 0 ? 1 : -1));
+    }
+  }
+  dragging = false; isSwipe = false;
+  lastTapTime = now;
+});
 
 loadData(false);
 </script>
