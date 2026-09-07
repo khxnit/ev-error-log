@@ -343,13 +343,17 @@ const SHEET_EDIT_URL = params.get('edit') || "";
    ถ้าไม่ใส่ทั้ง prefixes และ vehicles เลย = ไฟล์นี้ใช้ได้กับรถทุกคัน */
 const DIAGRAM_FILES = [
   { title: "วงจร Fuse box", file: "diagrams/fuse-box-lot3.pdf", type: "FUSE",
-    vehicles: ["09-504","09-511","09-514","09-515","09-523","09-524","09-527","09-502","09-608"] },
+    vehicles: ["09-504","09-511","09-514","09-515","09-523","09-524","09-527","09-502","09-608","12-211","12-222","12-223"] },
   { title: "วงจร Cooling", file: "diagrams/LOT3_H55_Cooling.pdf", type: "COOLING",
     vehicles: ["09-514","09-515","09-502","09-608"] },
   { title: "วงจร HV", file: "diagrams/LOT3_Backhoe_HV.pdf", type: "HV",
     vehicles: ["09-504","09-511","09-514","09-515","09-523","09-524","09-527","09-502","09-608"] },
   { title: "วงจร LV .dwg", file: "diagrams/LOT3_H55_LV.dwg", type: "LV",
     vehicles: ["09-514","09-515","09-502","09-608"] },
+  { title: "วงจร LV .dwg", file: "diagrams/LOT3_L8_LV.dwg", type: "LV",
+    vehicles: ["12-222","12-223"] },
+  { title: "วงจร Cooling", file: "diagrams/LOT3_L8_Cooling.pdf", type: "COOLING",
+    vehicles: ["12-222","12-223"] },
 ];
 const DIAGRAM_TYPE_CLASS = {HV:'hv', LV:'lv', FUSE:'motor', COOLING:'brake', OTHER:'other'};
 function getDiagramsForTpi(tpiCode){
