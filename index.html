@@ -208,6 +208,11 @@
   .row-card:hover{border-color:#b0b0b5;box-shadow:var(--shadow);}
   .row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .row-tpi{font-size:16px;font-weight:600;letter-spacing:-.01em;}
+  .lot-badge{
+    display:inline-block;font-size:10.5px;font-weight:700;color:var(--text-dim);
+    background:#efeff0;border-radius:6px;padding:2px 6px;margin-left:7px;vertical-align:middle;
+    letter-spacing:.02em;
+  }
   .row-date{font-size:12.5px;color:var(--text-dim);white-space:nowrap;text-align:right;}
   .row-symptom{font-size:14.5px;margin:8px 0 10px;line-height:1.5;color:#3a3a3c;}
   .row-bottom{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
@@ -334,6 +339,21 @@ const DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7fagc
 const params = new URLSearchParams(location.search);
 const CSV_URL = params.get('csv') || DEFAULT_CSV_URL;
 const SHEET_EDIT_URL = params.get('edit') || "";
+
+/* ผูกเบอร์รถ (TPI Code) เข้ากับ LOT — เพิ่ม/แก้ทีละคันได้ตรงนี้ */
+const VEHICLE_LOT_MAP = {
+  1: ["09-114","09-115","09-116","09-121","09-122","09-123","09-512","09-529","09-530","09-507","09-513","09-516","09-605","09-609","09-505","09-521","09-525","09-528","12-212"],
+  2: ["09-127","09-128","09-129","09-130","09-131","09-138","09-117","09-118","09-124","09-134","09-136","09-135","09-531","09-532","09-544","12-208"],
+  3: ["09-504","09-511","09-514","09-515","09-522","09-523","09-524","09-527","12-222","12-223","09-502","09-608","12-211","12-226"],
+  4: ["09-107","09-108","09-109","09-149","09-139","09-518","09-519","09-166","09-540"],
+};
+const TPI_TO_LOT = {};
+Object.entries(VEHICLE_LOT_MAP).forEach(([lot, list]) => list.forEach(tpi => TPI_TO_LOT[tpi] = lot));
+function getLot(tpiCode){ return TPI_TO_LOT[tpiCode] || null; }
+function lotBadgeHtml(tpiCode){
+  const lot = getLot(tpiCode);
+  return lot ? `<span class="lot-badge">LOT ${lot}</span>` : '';
+}
 
 /* รายการไฟล์วงจรไฟ (PDF) — เพิ่มทีละรายการที่นี่หลังอัพโหลดไฟล์เข้าโฟลเดอร์ diagrams/ ใน repo เดียวกัน
    title = ชื่อที่จะแสดงในเว็บ, file = path ของไฟล์ (ตรงกับชื่อไฟล์ที่อัพโหลดจริง)
@@ -507,7 +527,7 @@ function render(){
     const isRecur = r.errorCode && counts[key] >= 2;
     return `<div class="row-card" data-id="${r.id}">
       <div class="row-top">
-        <div class="row-tpi"><span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span></div>
+        <div class="row-tpi"><span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span>${lotBadgeHtml(r.tpiCode)}</div>
         <div class="row-date">${r.date||''}${r.timeFrom?' · '+r.timeFrom:''}</div>
       </div>
       <div class="row-symptom">${r.symptom || '—'}</div>
@@ -594,7 +614,7 @@ function renderDetail(id){
   clearCharts();
   const r = records.find(x=>x.id===id);
   if(!r) return;
-  document.getElementById('shTpi').innerHTML = `<span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span>`;
+  document.getElementById('shTpi').innerHTML = `<span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span>${lotBadgeHtml(r.tpiCode)}`;
   document.getElementById('shSub').textContent = `${r.date||''} ${r.timeFrom||''}${r.timeTo?'-'+r.timeTo:''} · WO ${r.workOrder||'—'}`;
   const row = (label, val) => `<div class="kv"><label>${label}</label><div class="v">${val || '<span style="color:var(--text-dim)">—</span>'}</div></div>`;
   const meta = sysMeta(r.system);
@@ -642,7 +662,7 @@ function renderDetail(id){
 function renderVehicleProfile(tpiCode){
   clearCharts();
   const list = records.filter(r => r.tpiCode === tpiCode).sort((a,b)=> (b.date||'').localeCompare(a.date||''));
-  document.getElementById('shTpi').textContent = tpiCode || '—';
+  document.getElementById('shTpi').innerHTML = `${tpiCode || '—'}${lotBadgeHtml(tpiCode)}`;
   document.getElementById('shSub').textContent = 'ประวัติ error ทั้งหมดของคันนี้';
 
   const unresolved = list.filter(r=>(r.resultStatus||'').includes('ไม่เสร็จ')).length;
