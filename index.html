@@ -558,7 +558,6 @@ function render(){
         ${sysChip}
         ${r.errorCode ? `<span class="chip code code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : ''}
         ${isRecur ? `<span class="chip recur">ซ้ำ ${counts[key]}×</span>` : ''}
-        <span class="status ${statusClass(r.resultStatus)}">${r.resultStatus||'—'}</span>
       </div>
     </div>`;
   }).join('');
@@ -659,9 +658,6 @@ function renderDetail(id){
     ${row('อุปกรณ์ต้นเหตุ', r.component)}
     ${row('สาเหตุเบื้องต้น', r.rootCauseInitial)}
     ${row('วิธีแก้ไขที่ทำ', r.fixMethod)}
-    ${row('ผู้ซ่อม', r.technician)}
-    ${row('ผลการซ่อม', r.resultStatus)}
-    ${row('แก้หายถาวรหรือไม่', r.resolvedPermanent)}
     ${SHEET_EDIT_URL ? `<a class="edit-link" href="${SHEET_EDIT_URL}" target="_blank" rel="noopener">แก้ไขข้อมูลนี้ใน Google Sheet ↗</a>` : ''}
   `;
   bindSheetLinks();
@@ -688,7 +684,6 @@ function renderVehicleProfile(tpiCode){
   document.getElementById('shTpi').innerHTML = `${tpiCode || '—'}${lotBadgeHtml(tpiCode)}`;
   document.getElementById('shSub').textContent = 'ประวัติ error ทั้งหมดของคันนี้';
 
-  const unresolved = list.filter(r=>(r.resultStatus||'').includes('ไม่เสร็จ')).length;
   const distinctCodes = new Set(list.map(r=>r.errorCode).filter(Boolean)).size;
 
   const bySystem = {};
@@ -708,9 +703,8 @@ function renderVehicleProfile(tpiCode){
 
   document.getElementById('shBody').innerHTML = `
     ${diagramChipsHtml(tpiCode)}
-    <div class="profile-stats">
+    <div class="profile-stats" style="grid-template-columns:repeat(2,1fr);">
       <div class="pstat"><b>${list.length}</b><span>ครั้งทั้งหมด</span></div>
-      <div class="pstat"><b>${unresolved}</b><span>ยังไม่เสร็จ</span></div>
       <div class="pstat"><b>${distinctCodes}</b><span>Error Code ต่างกัน</span></div>
     </div>
 
@@ -741,7 +735,6 @@ function renderVehicleProfile(tpiCode){
         ${list.map(r => `
           <div class="mini-row" data-id="${r.id}">
             <div><div class="mr-main">${r.symptom || r.errorCode || '—'}</div><div class="mr-sub">${r.date||''}${r.errorCode?' · '+r.errorCode:''}</div></div>
-            <div class="mr-count">${r.resultStatus||''}</div>
           </div>`).join('')}
       </div>
     </div>
@@ -773,7 +766,6 @@ function renderErrorProfile(errorCode){
   const vehicles = {};
   list.forEach(r=>{ const k = r.tpiCode || 'ไม่ระบุ'; vehicles[k] = (vehicles[k]||0)+1; });
   const vehicleList = Object.entries(vehicles).sort((a,b)=>b[1]-a[1]);
-  const resolvedPermanent = list.filter(r=>r.resolvedPermanent==='หายถาวร').length;
 
   const byMonth = {};
   list.forEach(r=>{ const k = monthLabel(r.date); byMonth[k] = (byMonth[k]||0)+1; });
@@ -787,10 +779,9 @@ function renderErrorProfile(errorCode){
   const fixList = Object.entries(fixCounts).sort((a,b)=>b[1]-a[1]);
 
   document.getElementById('shBody').innerHTML = `
-    <div class="profile-stats">
+    <div class="profile-stats" style="grid-template-columns:repeat(2,1fr);">
       <div class="pstat"><b>${list.length}</b><span>ครั้งทั้งหมด</span></div>
       <div class="pstat"><b>${vehicleList.length}</b><span>คันที่เกิด</span></div>
-      <div class="pstat"><b>${resolvedPermanent}</b><span>แก้หายถาวร</span></div>
     </div>
 
     <div class="profile-section">
@@ -827,7 +818,6 @@ function renderErrorProfile(errorCode){
         ${list.map(r => `
           <div class="mini-row" data-id="${r.id}">
             <div><div class="mr-main">${r.tpiCode||'—'}</div><div class="mr-sub">${r.date||''}</div></div>
-            <div class="mr-count">${r.resultStatus||''}</div>
           </div>`).join('')}
       </div>
     </div>
