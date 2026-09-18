@@ -524,6 +524,13 @@ function errorCodeCounts(){
 
 const DIAGRAM_GENERIC_WORDS = ['วงจร','circuit','wiring','diagram'];
 const DIAGRAM_TYPE_WORDS = ['fuse','fusebox','hv','lv','cooling','น้ำ','dwg','pdf'];
+function matchesAny(t, words){
+  if(t.length < 2) return false;
+  return words.some(w => w.includes(t) || t.includes(w));
+}
+function isGenericDiagramToken(t){ return matchesAny(t, DIAGRAM_GENERIC_WORDS); }
+function isTypeDiagramToken(t){ return matchesAny(t, DIAGRAM_TYPE_WORDS); }
+function isDiagramToken(t){ return isGenericDiagramToken(t) || isTypeDiagramToken(t); }
 function diagramHaystack(d){
   const extra = [];
   (d.vehicles||[]).forEach(v=>{
@@ -561,14 +568,15 @@ function render(){
   }
 
   const tokens = qRaw.split(/\s+/).filter(Boolean);
-  const scopeTokens = tokens.filter(t => !DIAGRAM_GENERIC_WORDS.includes(t) && !DIAGRAM_TYPE_WORDS.includes(t));
-  const wantsDiagram = tokens.some(t => DIAGRAM_GENERIC_WORDS.includes(t) || DIAGRAM_TYPE_WORDS.includes(t));
+  const scopeTokens = tokens.filter(t => !isDiagramToken(t));
+  const typeTokens = tokens.filter(isTypeDiagramToken);
+  const wantsDiagram = tokens.some(isDiagramToken);
 
   let diagramResults = [];
   if(wantsDiagram){
     diagramResults = DIAGRAM_FILES.filter(d=>{
       const hay = diagramHaystack(d);
-      return tokens.filter(t=>!DIAGRAM_GENERIC_WORDS.includes(t)).every(t => hay.includes(t));
+      return scopeTokens.every(t => hay.includes(t)) && typeTokens.every(t => hay.includes(t));
     });
   }
 
