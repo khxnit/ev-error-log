@@ -130,6 +130,12 @@
   }
   .diagram-section-title:first-child{margin-top:0;}
 
+  .results-header{
+    font-size:13px;font-weight:700;color:var(--text);
+    margin:20px 0 10px;padding-top:14px;border-top:1px solid var(--line);
+  }
+  .results-header:first-child{margin-top:0;padding-top:0;border-top:none;}
+
   .diagram-chip-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 20px;}
   .diagram-chip{
     text-decoration:none;padding:7px 13px;font-size:12.5px;
@@ -516,59 +522,109 @@ function errorCodeCounts(){
   return map;
 }
 
+const DIAGRAM_GENERIC_WORDS = ['วงจร','circuit','wiring','diagram'];
+const DIAGRAM_TYPE_WORDS = ['fuse','fusebox','hv','lv','cooling','น้ำ','dwg','pdf'];
+function diagramHaystack(d){
+  const extra = [];
+  (d.vehicles||[]).forEach(v=>{
+    extra.push(v);
+    const model = getModel(v); if(model) extra.push(model);
+    const lot = getLot(v); if(lot) extra.push('lot'+lot, 'lot '+lot);
+  });
+  (d.prefixes||[]).forEach(p=>extra.push(p));
+  const ext = (d.file.split('.').pop()||'');
+  return [d.title, d.type, ext, ...extra].join(' ').toLowerCase();
+}
+function diagramCardHtml(d){
+  const ext = (d.file.split('.').pop()||'FILE').toUpperCase();
+  const scopeText = d.vehicles && d.vehicles.length ? `ใช้กับ ${d.vehicles.length} คัน: ${d.vehicles.join(', ')}`
+    : (d.prefixes && d.prefixes.length ? `LOT ${d.prefixes.join(', ')}` : 'ใช้ได้ทุกคัน');
+  return `<a class="diagram-row" href="${d.file}" target="_blank" rel="noopener">
+    <div class="diagram-icon">${ext}</div>
+    <div><div class="diagram-title">${d.title}</div><div class="diagram-sub">${scopeText}</div></div>
+  </a>`;
+}
+
 function render(){
-  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const qRaw = document.getElementById('searchInput').value.trim().toLowerCase();
   const counts = errorCodeCounts();
-
-  let base = records;
-  let showList = false;
-
-  if(q){
-    const tokens = q.split(/\s+/).filter(Boolean);
-    base = base.filter(r=>{
-      const hay = [r.tpiCode,r.errorCode,r.symptom,r.component,r.rootCauseInitial,r.fixMethod,r.technician].join(' ').toLowerCase();
-      return tokens.every(t => hay.includes(t));
-    });
-    showList = true;
-  }
-
-  base = [...base].sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.timeFrom||'').localeCompare(a.timeFrom||''));
-
   const list = document.getElementById('list');
+
   if(records.length === 0){
     showState(`<h3>ยังไม่มีข้อมูล</h3><p>ยังไม่พบแถวข้อมูลใน Google Sheet ที่เชื่อมไว้ ตรวจสอบว่ามีข้อมูลและหัวคอลัมน์ถูกต้อง</p>`);
     return;
   }
-  if(!showList){
+  if(!qRaw){
     hideState();
-    list.innerHTML = `<div class="state" style="display:block"><h3>พิมพ์ keyword ที่ต้องการค้นหา</h3><p>เช่น เบอร์รถ, Error Code, หรืออาการที่เกิด</p></div>`;
+    list.innerHTML = `<div class="state" style="display:block"><h3>พิมพ์ keyword ที่ต้องการค้นหา</h3><p>เช่น เบอร์รถ, Error Code, ชื่อรุ่น, LOT, หรือพิมพ์ "วงจร" เพื่อหาไฟล์วงจรไฟ</p></div>`;
     return;
   }
-  if(base.length === 0){
+
+  const tokens = qRaw.split(/\s+/).filter(Boolean);
+  const scopeTokens = tokens.filter(t => !DIAGRAM_GENERIC_WORDS.includes(t) && !DIAGRAM_TYPE_WORDS.includes(t));
+  const wantsDiagram = tokens.some(t => DIAGRAM_GENERIC_WORDS.includes(t) || DIAGRAM_TYPE_WORDS.includes(t));
+
+  let diagramResults = [];
+  if(wantsDiagram){
+    diagramResults = DIAGRAM_FILES.filter(d=>{
+      const hay = diagramHaystack(d);
+      return tokens.filter(t=>!DIAGRAM_GENERIC_WORDS.includes(t)).every(t => hay.includes(t));
+    });
+  }
+
+  let historyResults = [];
+  if(scopeTokens.length){
+    historyResults = records.filter(r=>{
+      const hay = [r.tpiCode,r.errorCode,r.symptom,r.component,r.rootCauseInitial,r.fixMethod,r.technician].join(' ').toLowerCase();
+      return scopeTokens.every(t => hay.includes(t));
+    });
+    historyResults.sort((a,b)=> (b.date||'').localeCompare(a.date||'') || (b.timeFrom||'').localeCompare(a.timeFrom||''));
+  }
+
+  if(diagramResults.length === 0 && historyResults.length === 0){
     hideState();
-    list.innerHTML = `<div class="state" style="display:block"><h3>ไม่พบผลลัพธ์</h3><p>ลองปรับคำค้นหาหรือตัวเลือก</p></div>`;
+    list.innerHTML = `<div class="state" style="display:block"><h3>ไม่พบผลลัพธ์</h3><p>ลองปรับคำค้นหา</p></div>`;
     return;
   }
   hideState();
 
-  list.innerHTML = base.map(r=>{
-    const meta = sysMeta(r.system);
-    const sysChip = meta ? `<span class="chip ${meta.cls}">${meta.l}</span>` : `<span class="chip unset">ยังไม่ระบุระบบ</span>`;
-    const key = (r.tpiCode||'')+'|'+r.errorCode;
-    const isRecur = r.errorCode && counts[key] >= 2;
-    return `<div class="row-card" data-id="${r.id}">
-      <div class="row-top">
-        <div class="row-tpi"><span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span>${lotBadgeHtml(r.tpiCode)}</div>
-        <div class="row-date">${r.date||''}${r.timeFrom?' · '+r.timeFrom:''}</div>
-      </div>
-      <div class="row-symptom">${r.symptom || '—'}</div>
-      <div class="row-bottom">
-        ${sysChip}
-        ${r.errorCode ? `<span class="chip code code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : ''}
-        ${isRecur ? `<span class="chip recur">ซ้ำ ${counts[key]}×</span>` : ''}
-      </div>
-    </div>`;
-  }).join('');
+  let html = '';
+
+  if(diagramResults.length){
+    const typeOrder = ['FUSE','HV','LV','COOLING','OTHER'];
+    const typeLabel = {FUSE:'Fuse Box', HV:'HV แรงดันสูง', LV:'LV แรงดันต่ำ', COOLING:'Cooling น้ำหล่อเย็น', OTHER:'อื่นๆ'};
+    const groups = {};
+    diagramResults.forEach(d=>{ const t = d.type || 'OTHER'; (groups[t] = groups[t]||[]).push(d); });
+    html += `<div class="results-header">ไฟล์วงจรที่พบ (${diagramResults.length})</div>`;
+    html += typeOrder.filter(t=>groups[t]).map(t => `
+      <div class="diagram-section-title">${typeLabel[t]}</div>
+      <div class="list" style="margin-bottom:14px;">${groups[t].map(diagramCardHtml).join('')}</div>
+    `).join('');
+  }
+
+  if(historyResults.length){
+    if(diagramResults.length) html += `<div class="results-header">ประวัติงานซ่อม (${historyResults.length})</div>`;
+    html += `<div class="list">${historyResults.map(r=>{
+      const meta = sysMeta(r.system);
+      const sysChip = meta ? `<span class="chip ${meta.cls}">${meta.l}</span>` : `<span class="chip unset">ยังไม่ระบุระบบ</span>`;
+      const key = (r.tpiCode||'')+'|'+r.errorCode;
+      const isRecur = r.errorCode && counts[key] >= 2;
+      return `<div class="row-card" data-id="${r.id}">
+        <div class="row-top">
+          <div class="row-tpi"><span class="tpi-link" data-tpi="${r.tpiCode}">${r.tpiCode||'—'}</span>${lotBadgeHtml(r.tpiCode)}</div>
+          <div class="row-date">${r.date||''}${r.timeFrom?' · '+r.timeFrom:''}</div>
+        </div>
+        <div class="row-symptom">${r.symptom || '—'}</div>
+        <div class="row-bottom">
+          ${sysChip}
+          ${r.errorCode ? `<span class="chip code code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : ''}
+          ${isRecur ? `<span class="chip recur">ซ้ำ ${counts[key]}×</span>` : ''}
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+  }
+
+  list.innerHTML = html;
 
   list.querySelectorAll('.row-card').forEach(el=>{
     el.addEventListener('click', ()=> openSheet(el.dataset.id));
