@@ -734,10 +734,10 @@ function renderDetail(id){
     ${diagramChipsHtml(r.tpiCode)}
     ${row('อาการ / รายละเอียด', r.symptom)}
     ${row('Error Code', r.errorCode ? `<span class="tpi-link code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : '')}
-    ${row('ระบบที่เกี่ยวข้อง', meta ? meta.l : 'ยังไม่ระบุ')}
-    ${row('อุปกรณ์ต้นเหตุ', r.component)}
     ${row('สาเหตุเบื้องต้น', r.rootCauseInitial)}
     ${row('วิธีแก้ไขที่ทำ', r.fixMethod)}
+    ${row('ระบบที่เกี่ยวข้อง', meta ? meta.l : 'ยังไม่ระบุ')}
+    ${row('อุปกรณ์ต้นเหตุ', r.component)}
     ${SHEET_EDIT_URL ? `<a class="edit-link" href="${SHEET_EDIT_URL}" target="_blank" rel="noopener">แก้ไขข้อมูลนี้ใน Google Sheet ↗</a>` : ''}
   `;
   bindSheetLinks();
