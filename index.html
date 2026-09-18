@@ -124,6 +124,9 @@
   }
   .diagram-title{font-size:14.5px;font-weight:500;}
   .diagram-sub{font-size:12px;color:var(--text-dim);margin-top:2px;}
+  .vehicle-hl{
+    background:var(--blue);color:#fff;padding:1px 6px;border-radius:5px;font-weight:700;
+  }
   .diagram-section-title{
     font-size:12.5px;font-weight:600;color:var(--text-dim);text-transform:uppercase;
     letter-spacing:.03em;margin:18px 0 8px;
@@ -542,9 +545,14 @@ function diagramHaystack(d){
   const ext = (d.file.split('.').pop()||'');
   return [d.title, d.type, ext, ...extra].join(' ').toLowerCase();
 }
-function diagramCardHtml(d){
+function diagramCardHtml(d, scopeTokens){
+  scopeTokens = scopeTokens || [];
   const ext = (d.file.split('.').pop()||'FILE').toUpperCase();
-  const scopeText = d.vehicles && d.vehicles.length ? `ใช้กับ ${d.vehicles.length} คัน: ${d.vehicles.join(', ')}`
+  const highlight = v => {
+    const isMatch = scopeTokens.some(t => v.toLowerCase().includes(t));
+    return isMatch ? `<span class="vehicle-hl">${v}</span>` : v;
+  };
+  const scopeText = d.vehicles && d.vehicles.length ? `ใช้กับ ${d.vehicles.length} คัน: ${d.vehicles.map(highlight).join(', ')}`
     : (d.prefixes && d.prefixes.length ? `LOT ${d.prefixes.join(', ')}` : 'ใช้ได้ทุกคัน');
   return `<a class="diagram-row" href="${d.file}" target="_blank" rel="noopener">
     <div class="diagram-icon">${ext}</div>
@@ -606,7 +614,7 @@ function render(){
     html += `<div class="results-header">ไฟล์วงจรที่พบ (${diagramResults.length})</div>`;
     html += typeOrder.filter(t=>groups[t]).map(t => `
       <div class="diagram-section-title">${typeLabel[t]}</div>
-      <div class="list" style="margin-bottom:14px;">${groups[t].map(diagramCardHtml).join('')}</div>
+      <div class="list" style="margin-bottom:14px;">${groups[t].map(d=>diagramCardHtml(d, scopeTokens)).join('')}</div>
     `).join('');
   }
 
