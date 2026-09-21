@@ -348,9 +348,39 @@
 <script>
 /* ตั้งค่าลิงก์ CSV จาก Google Sheet (File > Share > Publish to web > CSV) ตรงนี้ */
 const DEFAULT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7fagcTTmH5KHHLAgUulQEVldSmfPIrnDeekJ9YxCPFXi43bY_1IwgPUFTUYP3cR08WuaElJc5vHHE/pub?gid=0&single=true&output=csv";
+const ERROR_DESC_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7fagcTTmH5KHHLAgUulQEVldSmfPIrnDeekJ9YxCPFXi43bY_1IwgPUFTUYP3cR08WuaElJc5vHHE/pub?gid=1852384789&single=true&output=csv";
 const params = new URLSearchParams(location.search);
 const CSV_URL = params.get('csv') || DEFAULT_CSV_URL;
 const SHEET_EDIT_URL = params.get('edit') || "";
+
+let errorDescMap = {};
+function normalizeLot(v){ return String(v||'').replace(/\D/g,''); }
+function errorDescKey(lot, code){ return normalizeLot(lot) + '|' + String(code||'').trim().toUpperCase(); }
+function getErrorDesc(lot, code){
+  if(!lot || !code) return null;
+  return errorDescMap[errorDescKey(lot, code)] || null;
+}
+async function loadErrorDescriptions(){
+  if(!ERROR_DESC_CSV_URL) return;
+  try{
+    const res = await fetch(ERROR_DESC_CSV_URL + (ERROR_DESC_CSV_URL.includes('?') ? '&' : '?') + 'cachebust=' + Date.now());
+    if(!res.ok) return;
+    const text = await res.text();
+    const parsed = Papa.parse(text, {header:true, skipEmptyLines:true});
+    const headers = parsed.meta.fields || [];
+    const lotHeader = headers.find(h=>h.toLowerCase().trim()==='lot') || headers.find(h=>h.toLowerCase().includes('lot'));
+    const codeHeader = headers.find(h=>h.toLowerCase().includes('error')) || headers[1];
+    const descHeader = headers.find(h=>h.includes('คำอธิบาย')) || headers.find(h=>h.toLowerCase().includes('desc')) || headers[2];
+    const map = {};
+    parsed.data.forEach(row=>{
+      const lot = lotHeader ? row[lotHeader] : '';
+      const code = codeHeader ? row[codeHeader] : '';
+      const desc = descHeader ? row[descHeader] : '';
+      if(lot && code && desc) map[errorDescKey(lot, code)] = String(desc).trim();
+    });
+    errorDescMap = map;
+  }catch(e){ /* descriptions are a supplementary feature — fail silently */ }
+}
 
 /* ผูกเบอร์รถ (TPI Code) เข้ากับ LOT — เพิ่ม/แก้ทีละคันได้ตรงนี้ */
 const VEHICLE_LOT_MAP = {
@@ -733,7 +763,7 @@ function renderDetail(id){
     ${imagesHtml}
     ${diagramChipsHtml(r.tpiCode)}
     ${row('อาการ / รายละเอียด', r.symptom)}
-    ${row('Error Code', r.errorCode ? `<span class="tpi-link code-link" data-code="${r.errorCode}">${r.errorCode}</span>` : '')}
+    ${row('Error Code', r.errorCode ? `<span class="tpi-link code-link" data-code="${r.errorCode}">${r.errorCode}</span>${getErrorDesc(getLot(r.tpiCode), r.errorCode) ? ` — ${getErrorDesc(getLot(r.tpiCode), r.errorCode)}` : ''}` : '')}
     ${row('สาเหตุเบื้องต้น', r.rootCauseInitial)}
     ${row('วิธีแก้ไขที่ทำ', r.fixMethod)}
     ${row('ระบบที่เกี่ยวข้อง', meta ? meta.l : 'ยังไม่ระบุ')}
@@ -801,11 +831,14 @@ function renderVehicleProfile(tpiCode){
     <div class="profile-section">
       <h4>Error Code ที่เกิดกับคันนี้</h4>
       <div class="mini-list">
-        ${topCodes.length ? topCodes.map(([code, d]) => `
+        ${topCodes.length ? topCodes.map(([code, d]) => {
+          const desc = getErrorDesc(getLot(tpiCode), code);
+          return `
           <div class="mini-row code-link" data-code="${code}">
-            <div><div class="mr-main">${code}</div><div class="mr-sub">ล่าสุด ${d.last||'—'}</div></div>
+            <div><div class="mr-main">${code}${desc ? ` — ${desc}` : ''}</div><div class="mr-sub">ล่าสุด ${d.last||'—'}</div></div>
             <div class="mr-count">${d.count} ครั้ง</div>
-          </div>`).join('') : '<div style="color:var(--text-dim);font-size:13.5px;">ไม่มี error code บันทึกไว้</div>'}
+          </div>`;
+        }).join('') : '<div style="color:var(--text-dim);font-size:13.5px;">ไม่มี error code บันทึกไว้</div>'}
       </div>
     </div>
 
@@ -847,6 +880,16 @@ function renderErrorProfile(errorCode){
   list.forEach(r=>{ const k = r.tpiCode || 'ไม่ระบุ'; vehicles[k] = (vehicles[k]||0)+1; });
   const vehicleList = Object.entries(vehicles).sort((a,b)=>b[1]-a[1]);
 
+  const lotDescs = {};
+  vehicleList.forEach(([tpi])=>{
+    const lot = getLot(tpi);
+    const desc = getErrorDesc(lot, errorCode);
+    if(lot && desc) lotDescs[lot] = desc;
+  });
+  const descHtml = Object.keys(lotDescs).length
+    ? `<div class="kv"><label>คำอธิบาย</label><div class="v">${Object.entries(lotDescs).map(([lot,d])=>`LOT ${lot}: ${d}`).join('<br>')}</div></div>`
+    : '';
+
   const byMonth = {};
   list.forEach(r=>{ const k = monthLabel(r.date); byMonth[k] = (byMonth[k]||0)+1; });
   const months = Object.keys(byMonth).sort();
@@ -859,6 +902,7 @@ function renderErrorProfile(errorCode){
   const fixList = Object.entries(fixCounts).sort((a,b)=>b[1]-a[1]);
 
   document.getElementById('shBody').innerHTML = `
+    ${descHtml}
     <div class="profile-stats" style="grid-template-columns:repeat(2,1fr);">
       <div class="pstat"><b>${list.length}</b><span>ครั้งทั้งหมด</span></div>
       <div class="pstat"><b>${vehicleList.length}</b><span>คันที่เกิด</span></div>
@@ -1054,6 +1098,7 @@ lightboxImg.addEventListener('touchend', e=>{
 });
 
 loadData(false);
+loadErrorDescriptions();
 </script>
 </body>
 </html>
